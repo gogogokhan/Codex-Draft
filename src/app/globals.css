@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased;
+  }
+}
+
+@layer components {
+  .pitch-surface {
+    background: linear-gradient(180deg, #0a2e1a 0%, #1a4d2e 45%, #1a4d2e 55%, #0a2e1a 100%);
+    background-image:
+      linear-gradient(rgba(16, 185, 129, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 185, 129, 0.06) 1px, transparent 1px),
+      linear-gradient(180deg, #0a2e1a 0%, #1a4d2e 45%, #1a4d2e 55%, #0a2e1a 100%);
+    background-size: 24px 24px, 24px 24px, 100% 100%;
+  }
+
+  .card-gold {
+    background: linear-gradient(145deg, #d4af37 0%, #f5e6a3 35%, #b8860b 70%, #8b6914 100%);
+  }
+
+  .card-silver {
+    background: linear-gradient(145deg, #c0c0c0 0%, #f0f0f0 35%, #a8a8a8 70%, #808080 100%);
+  }
+
+  .card-bronze {
+    background: linear-gradient(145deg, #cd7f32 0%, #e8a862 35%, #a0522d 70%, #8b4513 100%);
+  }
+}

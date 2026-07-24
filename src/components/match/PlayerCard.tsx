@@ -1,0 +1,1 @@
+export { PlayerCard } from '@/components/players/PlayerCard';
