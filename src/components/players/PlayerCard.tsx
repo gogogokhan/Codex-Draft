@@ -17,6 +17,7 @@ interface PlayerCardProps {
   selected?: boolean;
   selectable?: boolean;
   onClick?: (player?: any, e?: React.MouseEvent) => void;
+  onCardClick?: () => void;
   onEdit?: (player: any) => void;
   onDelete?: (player: any) => void;
 }
@@ -33,7 +34,6 @@ const POSITION_ORDER: Record<string, number> = {
 const extractPosCode = (val: any): string => {
   if (!val) return "MID";
   
-  // Eğer string geldiyse ve "{...}" şeklinde JSON string'i ise parse etmeyi dene
   if (typeof val === "string") {
     const trimmed = val.trim();
     if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -41,16 +41,15 @@ const extractPosCode = (val: any): string => {
         const parsed = JSON.parse(trimmed);
         return extractPosCode(parsed);
       } catch {
-        return trimmed.toUpperCase();
+        return trimmed.toLocaleUpperCase("tr-TR");
       }
     }
-    return trimmed.toUpperCase();
+    return trimmed.toLocaleUpperCase("tr-TR");
   }
   
   if (typeof val === "number") return String(val);
 
   if (typeof val === "object") {
-    // Büyük / Küçük harf ve farklı key varyasyonları
     const rawCode =
       val.code ??
       val.CODE ??
@@ -72,6 +71,7 @@ export function PlayerCard({
   selected = false,
   selectable = false,
   onClick,
+  onCardClick,
   onEdit,
   onDelete,
 }: PlayerCardProps) {
@@ -83,6 +83,8 @@ export function PlayerCard({
     e.stopPropagation();
     if (onClick) {
       onClick(player, e);
+    } else if (onCardClick) {
+      onCardClick();
     } else if (onEdit) {
       onEdit(player);
     }
@@ -106,14 +108,15 @@ export function PlayerCard({
     setShowDeleteConfirm(false);
   };
 
-  const name = String(player.name || player.fullName || "OYUNCU").toUpperCase();
+  // 🇹🇷 TÜRKÇE KARAKTER DUYARLI BÜYÜK HARF DÖNÜŞÜMÜ
+  const rawName = String(player.name || player.fullName || "OYUNCU");
+  const name = rawName.toLocaleUpperCase("tr-TR");
 
   // 1. MEVKİ VERİLERİNİ TEMİZLE VE ÇEK
   let rawPosList: PositionItem[] = [];
 
   let positionsData = player.positions;
   
-  // Eger positions bir JSON string'i olarak geldiyse parse et
   if (typeof positionsData === "string") {
     try {
       positionsData = JSON.parse(positionsData);
@@ -124,7 +127,6 @@ export function PlayerCard({
 
   if (Array.isArray(positionsData) && positionsData.length > 0) {
     rawPosList = positionsData.map((p: any) => {
-      // Obje JSON string olarak p'nin içine düşmüşse parse et
       let item = p;
       if (typeof item === "string" && item.trim().startsWith("{")) {
         try {
@@ -170,8 +172,8 @@ export function PlayerCard({
 
   // 3. MEVKİLERİ SIRALA
   const posList = [...rawPosList].sort((a, b) => {
-    const orderA = POSITION_ORDER[String(a.code).toUpperCase()] || 99;
-    const orderB = POSITION_ORDER[String(b.code).toUpperCase()] || 99;
+    const orderA = POSITION_ORDER[String(a.code).toLocaleUpperCase("tr-TR")] || 99;
+    const orderB = POSITION_ORDER[String(b.code).toLocaleUpperCase("tr-TR")] || 99;
     return orderA - orderB;
   });
 
@@ -234,7 +236,7 @@ export function PlayerCard({
         <span className="font-black tracking-tighter block text-[#F5D77F] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-none text-[28px]">
           {overallRating}
         </span>
-        <span className="font-black block text-[#D4AF37] uppercase tracking-wider leading-none mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-[13px]">
+        <span className="font-black block text-[#D4AF37] tracking-wider leading-none mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-[13px]">
           {extractPosCode(mainPosCode)}
         </span>
       </div>
@@ -253,16 +255,16 @@ export function PlayerCard({
         )}
       </div>
 
-      {/* 3. OYUNCU İSMİ */}
+      {/* 3. OYUNCU İSMİ (Türkçe karakter uyumlu toLocaleUpperCase kullanıldı) */}
       <div className="absolute top-[66%] inset-x-[12%] z-20 text-center flex items-center justify-center h-[6%] pointer-events-none">
-        <span className="font-black text-[#D4AF37] tracking-wider uppercase block truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] text-base">
+        <span className="font-black text-[#D4AF37] tracking-wider block truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] text-base">
           {name}
         </span>
       </div>
 
       {/* 4. POZİSYON BAŞLIKLARI */}
       <div className="absolute top-[72.5%] inset-x-[15%] z-20 text-center pointer-events-none">
-        <div className={`grid ${gridColsClass} text-center font-black text-[#D4AF37] uppercase tracking-wider text-[12px]`}>
+        <div className={`grid ${gridColsClass} text-center font-black text-[#D4AF37] tracking-wider text-[12px]`}>
           {posList.map((item, idx) => (
             <span key={idx}>{extractPosCode(item.code)}</span>
           ))}

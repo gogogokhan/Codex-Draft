@@ -11,7 +11,7 @@ import {
 } from "react";
 import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
-import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig } from "@/types";
+import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig, type Position } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -44,11 +44,15 @@ interface AppContextValue {
   setActiveTab: (step: StepType) => void;
   draftMode: DraftMode;
   setDraftMode: (mode: DraftMode) => void;
+  isAdmin: boolean;
+  setIsAdmin: (value: boolean) => void;
   isAuthenticated: boolean;
   user: SupabaseUser | null;
   login: (email: string, password?: string) => Promise<AuthResponse>;
   register: (email: string, password?: string, name?: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
+  warningMessage: string | null;
+  setWarningMessage: (message: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -62,6 +66,80 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return arr;
 };
 
+const normalizePositionCode = (value: unknown): Position => {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (raw.includes("GK") || raw === "KL" || raw.includes("KALECİ") || raw.includes("KEEPER")) {
+    return "GK";
+  }
+  if (raw.includes("DEF") || raw.includes("BEK") || raw.includes("STOPPER")) {
+    return "DEF";
+  }
+  if (raw.includes("MID") || raw.includes("ORTA") || raw.includes("OS")) {
+    return "MID";
+  }
+  if (raw.includes("FWD") || raw.includes("FORVET") || raw.includes("FOR") || raw.includes("ST")) {
+    return "FWD";
+  }
+  return "MID";
+};
+
+const normalizePlayer = (player: any): Player => {
+  const positionsArray = Array.isArray(player?.positions) ? player.positions : [];
+  const positionEntries = positionsArray.map((item: any) => {
+    if (typeof item === "string") {
+      return { code: normalizePositionCode(item), rating: Number(player?.overall ?? 50) || 50 };
+    }
+
+    if (item && typeof item === "object") {
+      const code = normalizePositionCode(item.code ?? item.primary ?? item.name ?? item.value ?? item.label);
+      const rating = Number(item.rating ?? item.RATING ?? player?.overall ?? 50) || 50;
+      return { code, rating };
+    }
+
+    return null;
+  }).filter(Boolean) as Array<{ code: Position; rating: number }>;
+
+  const primaryPosition = normalizePositionCode(
+    player?.position?.primary ?? player?.position?.code ?? player?.position ?? player?.mainPosition ?? player?.pos ?? player?.role
+  );
+
+  const ratings = {
+    GK: 0,
+    DEF: 0,
+    MID: 0,
+    FWD: 0,
+  };
+
+  if (positionEntries.length > 0) {
+    positionEntries.forEach((entry) => {
+      ratings[entry.code] = entry.rating;
+    });
+  }
+
+  if (typeof player?.ratings === "object" && player?.ratings !== null) {
+    Object.entries(player.ratings).forEach(([key, value]) => {
+      if (key in ratings && typeof value === "number") {
+        ratings[key as keyof typeof ratings] = value;
+      }
+    });
+  }
+
+  const overall = Number(player?.overall ?? player?.rating ?? player?.ovr ?? ratings[primaryPosition] ?? 50) || 50;
+
+  return {
+    id: String(player?.id ?? ""),
+    name: String(player?.name ?? ""),
+    avatar: String(player?.avatar ?? ""),
+    ratings,
+    position: {
+      primary: primaryPosition,
+      secondary: undefined,
+    },
+    overall,
+    positions: positionEntries.length > 0 ? positionEntries : undefined as any,
+  } as Player;
+};
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -73,36 +151,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [draftResult, setDraftResult] = useState<DraftResult | null>(null);
   const [currentStep, setCurrentStepState] = useState<StepType>("pool");
   const [draftMode, setDraftMode] = useState<DraftMode>("overall");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
   // Oyuncuları Supabase'den çek
   const fetchPlayers = useCallback(async () => {
     const { data, error } = await supabase.from("players").select("*");
     if (!error && data) {
-      setPlayers(
-        data.map((p) => ({
-          id: p.id,
-          name: p.name,
-          overall: p.overall,
-          positions: p.positions,
-        }))
-      );
+      setPlayers(data.map((p) => normalizePlayer(p)));
     }
   }, []);
 
   // Oturum durumunu ve değişiklikleri dinle
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        fetchPlayers();
+    let hydrationTimeout: NodeJS.Timeout;
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          await fetchPlayers();
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+      } finally {
+        if (mounted) {
+          setHydrated(true);
+        }
       }
-      setHydrated(true);
-    });
+    };
+
+    // 5 saniye sonra yine de hydrate et
+    hydrationTimeout = setTimeout(() => {
+      if (mounted && !hydrated) {
+        setHydrated(true);
+      }
+    }, 5000);
+
+    initializeAuth();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
@@ -113,7 +210,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(hydrationTimeout);
+      subscription.unsubscribe();
+    };
   }, [fetchPlayers]);
 
   // SUPABASE KAYIT
@@ -151,49 +252,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   // SUPABASE GİRİŞ
-const login = useCallback(
-  async (email: string, password?: string): Promise<AuthResponse> => {
-    if (!password) return { success: false, error: "Lütfen şifrenizi giriniz." };
+  const login = useCallback(
+    async (email: string, password?: string): Promise<AuthResponse> => {
+      if (!password) return { success: false, error: "Lütfen şifrenizi giriniz." };
 
-    const cleanEmail = email.trim();
+      const cleanEmail = email.trim();
 
-    // 1. Önce e-postanın kayıtlı olup olmadığını RPC ile kontrol et
-    const { data: userExists } = await supabase.rpc("check_email_exists", {
-      email_input: cleanEmail,
-    });
+      const { data: userExists } = await supabase.rpc("check_email_exists", {
+        email_input: cleanEmail,
+      });
 
-    if (!userExists) {
-      return {
-        success: false,
-        error: "Böyle bir hesap bulunamadı. Lütfen kayıt olun.",
-      };
-    }
-
-    // 2. E-posta varsa şifre ile giriş yapmayı dene
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
-
-    if (error) {
-      let message = "Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.";
-      
-      if (error.message.includes("Email not confirmed")) {
-        message = "E-posta adresiniz henüz onaylanmamış.";
+      if (!userExists) {
+        return {
+          success: false,
+          error: "Böyle bir hesap bulunamadı. Lütfen kayıt olun.",
+        };
       }
 
-      return { success: false, error: message };
-    }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
 
-    if (data.session?.user || data.user) {
-      setUser(data.session?.user || data.user);
-      await fetchPlayers();
-    }
+      if (error) {
+        let message = "Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.";
+        
+        if (error.message.includes("Email not confirmed")) {
+          message = "E-posta adresiniz henüz onaylanmamış.";
+        }
 
-    return { success: true };
-  },
-  [fetchPlayers]
-);
+        return { success: false, error: message };
+      }
+
+      if (data.session?.user || data.user) {
+        setUser(data.session?.user || data.user);
+        await fetchPlayers();
+      }
+
+      return { success: true };
+    },
+    [fetchPlayers]
+  );
 
   // SUPABASE ÇIKIŞ
   const logout = useCallback(async () => {
@@ -213,17 +312,21 @@ const login = useCallback(
         .insert({
           user_id: user.id,
           name: player.name,
-          overall: player.overall,
-          positions: player.positions,
+          overall: (player as any).overall ?? 80,
+          positions: (player as any).positions ?? {
+            gk: 0,
+            def: 0,
+            mid: 0,
+            fwd: 0,
+          },
         })
         .select()
         .single();
 
       if (!error && data) {
-        setPlayers((prev) => [
-          ...prev,
-          { id: data.id, name: data.name, overall: data.overall, positions: data.positions },
-        ]);
+        setPlayers((prev) => [...prev, normalizePlayer(data)]);
+      } else if (error) {
+        console.error("Oyuncu eklenirken hata:", error.message);
       }
     },
     [user]
@@ -235,13 +338,20 @@ const login = useCallback(
       .from("players")
       .update({
         name: player.name,
-        overall: player.overall,
-        positions: player.positions,
+        overall: (player as any).overall ?? 80,
+        positions: (player as any).positions ?? {
+          gk: 0,
+          def: 0,
+          mid: 0,
+          fwd: 0,
+        },
       })
       .eq("id", player.id);
 
     if (!error) {
       setPlayers((prev) => prev.map((p) => (p.id === player.id ? player : p)));
+    } else {
+      console.error("Oyuncu güncellenirken hata:", error.message);
     }
   }, []);
 
@@ -330,11 +440,15 @@ const login = useCallback(
       setActiveTab: setCurrentStep,
       draftMode,
       setDraftMode,
+      isAdmin,
+      setIsAdmin,
       isAuthenticated: !!user,
       user,
       login,
       register,
       logout,
+      warningMessage,
+      setWarningMessage,
     }),
     [
       players,
@@ -355,10 +469,12 @@ const login = useCallback(
       setCurrentStep,
       draftMode,
       setDraftMode,
+      isAdmin,
       user,
       login,
       register,
       logout,
+      warningMessage,
     ]
   );
 

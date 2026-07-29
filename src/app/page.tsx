@@ -8,21 +8,56 @@ import { AttendanceList } from "@/components/match/AttendanceList";
 import { PitchView } from "@/components/pitch/PitchView";
 import { WhatsAppExport } from "@/components/export/WhatsAppExport";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { PlayerModal } from "@/components/players/PlayerModal"; // <-- Burası PlayerModal olarak düzeltildi
+import { PlayerModal } from "@/components/players/PlayerModal";
 import { useApp } from "@/context/AppContext";
 
 export default function HomePage() {
-  const { currentStep } = useApp();
+  const { currentStep, players, addPlayer, updatePlayer, deletePlayer } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any>(null);
+
+  const handleOpenAddModal = () => {
+    setEditingPlayer(null);
+    setIsAddPlayerModalOpen(true);
+  };
+
+  const handleOpenEditModal = (player: any) => {
+    setEditingPlayer(player);
+    setIsAddPlayerModalOpen(true);
+  };
+
+  const handleSavePlayer = async (playerData: any) => {
+    if (editingPlayer) {
+      if (updatePlayer) await updatePlayer(playerData);
+    } else {
+      if (addPlayer) await addPlayer(playerData);
+    }
+    setIsAddPlayerModalOpen(false);
+    setEditingPlayer(null);
+  };
+
+  const handleClearAllPlayers = async () => {
+    for (const player of players) {
+      await deletePlayer(player.id);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <Header onOpenAddPlayerModal={() => setIsAddPlayerModalOpen(true)} />
+      <Header onOpenAddPlayerModal={handleOpenAddModal} />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <AuthGuard>
           {/* OYUNCU HAVUZU */}
-          {currentStep === "pool" && <PlayerPool />}
+          {currentStep === "pool" && (
+            <PlayerPool
+              players={players}
+              onAddPlayerClick={handleOpenAddModal}
+              onEditPlayer={handleOpenEditModal}
+              onDeletePlayer={deletePlayer}
+              onClearAllPlayers={handleClearAllPlayers}
+            />
+          )}
 
           {/* MAÇ KURUCU - 1. ADIM: Maç Ayarları */}
           {currentStep === "settings" && <TeamConfigPanel />}
@@ -43,7 +78,12 @@ export default function HomePage() {
       {/* OYUNCU EKLEME / DÜZENLEME MODALI */}
       <PlayerModal
         isOpen={isAddPlayerModalOpen}
-        onClose={() => setIsAddPlayerModalOpen(false)}
+        initialPlayer={editingPlayer}
+        onSave={handleSavePlayer}
+        onClose={() => {
+          setIsAddPlayerModalOpen(false);
+          setEditingPlayer(null);
+        }}
       />
     </div>
   );

@@ -18,6 +18,7 @@ export interface Player {
     primary: Position;
     secondary?: Position;
   };
+  overall?: number;
 }
 
 export interface TeamConfig {

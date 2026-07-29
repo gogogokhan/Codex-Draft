@@ -1,22 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Star, Trash2, Plus } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Star, Trash2, Plus, UserPlus, UserCheck, Ban, Loader2 } from 'lucide-react';
 
-interface PositionItem {
+export interface PositionItem {
   code: 'GK' | 'DEF' | 'MID' | 'FWD';
   label: string;
   rating: number;
   isMain: boolean;
 }
 
-interface PlayerModalProps {
+export interface PlayerModalProps {
   isOpen?: boolean;
   open?: boolean;
   show?: boolean;
   onClose: () => void;
-  onSave?: (playerData: any) => void;
-  onSubmit?: (playerData: any) => void;
+  onSave?: (playerData: any) => Promise<void> | void;
+  onSubmit?: (playerData: any) => Promise<void> | void;
   initialPlayer?: any;
   player?: any;
   editingPlayer?: any;
@@ -28,7 +28,7 @@ const POSITIONS = [
   { code: 'DEF', label: 'Defans' },
   { code: 'MID', label: 'Orta Saha' },
   { code: 'FWD', label: 'Forvet' },
-];
+] as const;
 
 export function PlayerModal({
   isOpen,
@@ -42,18 +42,18 @@ export function PlayerModal({
   editingPlayer,
   playerToEdit,
 }: PlayerModalProps) {
-  const isModalOpen = isOpen ?? open ?? show ?? false;
+  const isModalOpen = Boolean(isOpen ?? open ?? show);
   const activePlayer = initialPlayer || player || editingPlayer || playerToEdit || null;
   const handleSaveCallback = onSave || onSubmit;
 
   const [name, setName] = useState('');
   const [positions, setPositions] = useState<PositionItem[]>([]);
-  const [selectedPosCode, setSelectedPosCode] = useState<string>('GK');
-  const [ratingInput, setRatingInput] = useState<number | string>(50);
+  const [selectedPosCode, setSelectedPosCode] = useState<string>('');
+  const [ratingInput, setRatingInput] = useState<number | string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🛡️ KOD -> ETİKET EŞLEŞTİRME YARDIMCISI
-  const getLabelByCode = (codeStr: string): string => {
+  const getLabelByCode = useCallback((codeStr: string): string => {
     const found = POSITIONS.find((p) => p.code === codeStr);
     if (found) return found.label;
     if (codeStr === 'GK' || codeStr === 'KL') return 'Kaleci';
@@ -61,31 +61,45 @@ export function PlayerModal({
     if (codeStr === 'MID') return 'Orta Saha';
     if (codeStr === 'FWD' || codeStr === 'ST') return 'Forvet';
     return codeStr || 'Kaleci';
-  };
+  }, []);
+
+  const handleModalClose = useCallback(() => {
+    setSelectedPosCode('');
+    setRatingInput('');
+    setErrorMsg(null);
+    setIsSubmitting(false);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
+    if (!isModalOpen) return;
+
+    setSelectedPosCode('');
+    setRatingInput('');
+    setErrorMsg(null);
+    setIsSubmitting(false);
+
     if (activePlayer) {
       setName(activePlayer.name || activePlayer.fullName || '');
 
       let rawPositions = activePlayer.positions;
-
-      // JSON String olarak geldiyse parse et
       if (typeof rawPositions === 'string') {
         try {
           rawPositions = JSON.parse(rawPositions);
-        } catch {}
+        } catch {
+          rawPositions = [];
+        }
       }
 
       if (Array.isArray(rawPositions) && rawPositions.length > 0) {
-        // 🎯 MEVKİ LİSTESİNİ GÜVENLE FORMATLA VE REYTİNG/LABEL UYUŞMAZLIĞINI DÜZELT
         const formatted: PositionItem[] = rawPositions.map((p: any, idx: number) => {
           let item = p;
           if (typeof item === 'string' && item.trim().startsWith('{')) {
             try { item = JSON.parse(item); } catch {}
           }
 
-          const codeVal = typeof item === 'object' 
-            ? (item.code || item.CODE || item.primary || 'GK') 
+          const codeVal = typeof item === 'object'
+            ? (item.code || item.CODE || item.primary || 'GK')
             : String(item || 'GK');
 
           const upperCode = String(codeVal).toUpperCase();
@@ -105,6 +119,9 @@ export function PlayerModal({
             ? (item.rating ?? item.RATING ?? activePlayer.overall ?? activePlayer.rating ?? 50)
             : (activePlayer.overall ?? activePlayer.rating ?? 50);
 
+          let numericRating = Number(ratingVal) || 50;
+          numericRating = Math.min(99, Math.max(50, numericRating));
+
           const isMainVal = typeof item === 'object'
             ? Boolean(item.isMain ?? item.ISMAIN ?? idx === 0)
             : idx === 0;
@@ -112,23 +129,22 @@ export function PlayerModal({
           return {
             code: cleanCode as any,
             label: labelVal,
-            rating: Number(ratingVal) || 50,
+            rating: numericRating,
             isMain: isMainVal,
           };
         });
 
         setPositions(formatted);
       } else {
-        // GÜVENLİ MEVKİ DÖNÜŞTÜRME
         const rawPos = activePlayer.mainPosition || activePlayer.position || 'GK';
-        const posStr =
-          typeof rawPos === 'object' && rawPos !== null
-            ? String(rawPos.code || rawPos.label || rawPos.name || 'GK')
-            : String(rawPos || 'GK');
+        const posStr = typeof rawPos === 'object' && rawPos !== null
+          ? String(rawPos.code || rawPos.label || rawPos.name || 'GK')
+          : String(rawPos || 'GK');
 
-        const ovr = Number(activePlayer.overall || activePlayer.rating || 50);
+        let ovr = Number(activePlayer.overall || activePlayer.rating || 50);
+        ovr = Math.min(99, Math.max(50, ovr));
+
         const posUpper = posStr.toUpperCase();
-
         const cleanCode = (posUpper.includes('GK') || posUpper === 'KL')
           ? 'GK'
           : posUpper.includes('DEF')
@@ -149,11 +165,8 @@ export function PlayerModal({
     } else {
       setName('');
       setPositions([]);
-      setRatingInput(50);
-      setSelectedPosCode('GK');
     }
-    setErrorMsg(null);
-  }, [activePlayer, isModalOpen]);
+  }, [activePlayer, isModalOpen, getLabelByCode]);
 
   if (!isModalOpen) return null;
 
@@ -165,25 +178,33 @@ export function PlayerModal({
     }
     let num = parseInt(val, 10);
     if (isNaN(num)) return;
+
     if (num > 99) num = 99;
+    if (val.length >= 2 && num < 50) num = 50;
+
     setRatingInput(num);
   };
 
   const handleRatingBlur = () => {
-    if (typeof ratingInput === 'string' || ratingInput < 50) {
+    if (ratingInput === '' || Number(ratingInput) < 50) {
       setRatingInput(50);
     }
   };
 
   const handleAddPosition = () => {
     setErrorMsg(null);
-    const existing = positions.find((p) => p.code === selectedPosCode);
-    if (existing) {
+    if (!selectedPosCode) {
+      setErrorMsg('Lütfen bir pozisyon seçin!');
+      return;
+    }
+    if (positions.some((p) => p.code === selectedPosCode)) {
       setErrorMsg('Bu mevki zaten eklenmiş!');
       return;
     }
 
-    const currentRating = typeof ratingInput === 'number' && ratingInput >= 50 ? ratingInput : 50;
+    let currentRating = typeof ratingInput === 'number' ? ratingInput : Number(ratingInput) || 50;
+    currentRating = Math.min(99, Math.max(50, currentRating));
+
     const posMeta = POSITIONS.find((p) => p.code === selectedPosCode)!;
 
     const newPosItem: PositionItem = {
@@ -193,8 +214,36 @@ export function PlayerModal({
       isMain: positions.length === 0,
     };
 
-    setPositions([...positions, newPosItem]);
-    setRatingInput(50);
+    setPositions((prev) => [...prev, newPosItem]);
+    setSelectedPosCode('');
+    setRatingInput('');
+  };
+
+  const handleUpdatePositionRating = (code: string, rawVal: string) => {
+    if (rawVal === '') {
+      setPositions((prev) =>
+        prev.map((item) => (item.code === code ? { ...item, rating: 0 } : item))
+      );
+      return;
+    }
+
+    let num = parseInt(rawVal, 10);
+    if (isNaN(num)) return;
+
+    if (num > 99) num = 99;
+    if (rawVal.length >= 2 && num < 50) num = 50;
+
+    setPositions((prev) =>
+      prev.map((item) => (item.code === code ? { ...item, rating: num } : item))
+    );
+  };
+
+  const handlePositionRatingBlur = (code: string, currentVal: number | string) => {
+    if (!currentVal || Number(currentVal) < 50) {
+      setPositions((prev) =>
+        prev.map((item) => (item.code === code ? { ...item, rating: 50 } : item))
+      );
+    }
   };
 
   const handleSetMain = (code: string) => {
@@ -210,14 +259,16 @@ export function PlayerModal({
     setPositions((prev) => {
       const filtered = prev.filter((item) => item.code !== code);
       if (filtered.length > 0 && !filtered.some((p) => p.isMain)) {
-        filtered[0].isMain = true;
+        return filtered.map((p, idx) => (idx === 0 ? { ...p, isMain: true } : p));
       }
       return filtered;
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!name.trim()) {
       setErrorMsg('Lütfen oyuncu ismini giriniz.');
       return;
@@ -227,35 +278,62 @@ export function PlayerModal({
       return;
     }
 
-    const mainPosItem = positions.find((p) => p.isMain) || positions[0];
+    try {
+      setIsSubmitting(true);
+      const mainPosItem = positions.find((p) => p.isMain) || positions[0];
 
-    const playerData = {
-      ...activePlayer,
-      id: activePlayer?.id || Date.now().toString(),
-      name: name.trim(),
-      overall: mainPosItem.rating,
-      position: mainPosItem.code,
-      mainPosition: mainPosItem.code,
-      positions: positions,
-    };
+      const normalizedPositions = positions.map((p) => ({
+        ...p,
+        code: p.code,
+        rating: Math.max(50, Number(p.rating) || 50),
+      }));
 
-    if (handleSaveCallback) {
-      handleSaveCallback(playerData);
+      const playerData = {
+        ...(activePlayer?.id ? { id: activePlayer.id } : {}),
+        name: name.trim(),
+        overall: Math.max(50, Number(mainPosItem.rating) || 50),
+        position: { primary: mainPosItem.code },
+        mainPosition: mainPosItem.code,
+        positions: normalizedPositions,
+        ratings: normalizedPositions.reduce((acc, p) => {
+          acc[p.code as keyof typeof acc] = p.rating;
+          return acc;
+        }, { GK: 0, DEF: 0, MID: 0, FWD: 0 } as Record<string, number>),
+      };
+
+      if (handleSaveCallback) {
+        await handleSaveCallback(playerData);
+      }
+      handleModalClose();
+    } catch (err: any) {
+      setErrorMsg('Oyuncu kaydedilirken bir hata oluştu.');
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-md bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden text-white">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-lg font-bold text-zinc-100">
-            {activePlayer ? 'Oyuncu Düzenle' : 'Yeni Oyuncu Ekle'}
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+      <div 
+        className="relative w-full max-w-md bg-gradient-to-br from-[#122853] via-[#091734] to-[#040a1b] border border-[#00d2ff]/20 rounded-3xl overflow-hidden text-white"
+        style={{
+          boxShadow: '0 0 30px rgba(0, 210, 255, 0.45), 0 0 70px rgba(0, 102, 255, 0.35), 0 0 100px rgba(0, 50, 180, 0.25)',
+        }}
+      >
+        {/* Üst Başlık Şeridi */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#00d2ff]/25 bg-[#061127]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#D4AF37] rounded-xl text-black flex items-center justify-center">
+              {activePlayer ? <UserCheck className="w-5 h-5 stroke-[2.5]" /> : <UserPlus className="w-5 h-5 stroke-[2.5]" />}
+            </div>
+            <h2 className="text-base font-black tracking-wider text-[#F5D77F] uppercase">
+              {activePlayer ? 'Oyuncu Düzenle' : 'Yeni Oyuncu Ekle'}
+            </h2>
+          </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+            onClick={handleModalClose}
+            className="p-2 rounded-xl text-zinc-300 hover:text-[#00d2ff] hover:bg-blue-900/60 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -263,32 +341,43 @@ export function PlayerModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {errorMsg && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-semibold">
+            <div className="p-3 bg-red-950/90 border border-red-500/50 rounded-xl text-red-200 text-xs font-semibold">
               {errorMsg}
             </div>
           )}
 
+          {/* İsim Alanı */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1">İsim</label>
+            <label className="block text-[11px] font-black uppercase tracking-wider text-[#F5D77F] mb-1.5">
+              İsim
+            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Örn: Ahmet Yılmaz"
-              className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700/60 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition"
+              className="w-full px-4 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm text-white placeholder-blue-300/40 focus:outline-none focus:border-[#00d2ff] transition font-medium"
             />
           </div>
 
+          {/* Pozisyon Ekleme Alanı */}
           <div>
-            <label className="block text-xs font-semibold text-red-500 mb-1.5">Pozisyon</label>
-            <div className="flex items-center gap-2">
+            <label className="block text-[11px] font-black uppercase tracking-wider text-[#F5D77F] mb-1.5">
+              Pozisyon & Reyting
+            </label>
+            <div className="flex items-center gap-2.5">
               <select
                 value={selectedPosCode}
                 onChange={(e) => setSelectedPosCode(e.target.value)}
-                className="flex-1 px-3 py-2.5 bg-zinc-900 border border-zinc-700/60 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                className={`flex-1 px-3.5 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm focus:outline-none focus:border-[#00d2ff] transition cursor-pointer font-medium ${
+                  selectedPosCode ? 'text-white' : 'text-blue-300/40'
+                }`}
               >
+                <option value="" disabled className="bg-[#0f274e] text-blue-300/40">
+                  Mevki Seçin
+                </option>
                 {POSITIONS.map((pos) => (
-                  <option key={pos.code} value={pos.code}>
+                  <option key={pos.code} value={pos.code} className="bg-[#0f274e] text-white">
                     {pos.label}
                   </option>
                 ))}
@@ -301,33 +390,34 @@ export function PlayerModal({
                 value={ratingInput}
                 onChange={handleRatingChange}
                 onBlur={handleRatingBlur}
-                placeholder="50"
-                className="w-20 px-3 py-2.5 bg-zinc-900 border border-zinc-700/60 rounded-lg text-sm text-center text-white focus:outline-none focus:border-emerald-500"
+                placeholder="OVR"
+                className="w-20 px-3 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none focus:border-[#00d2ff] transition"
               />
             </div>
 
             <button
               type="button"
               onClick={handleAddPosition}
-              className="w-full mt-2.5 py-2.5 bg-red-600/90 hover:bg-red-600 text-white font-bold text-xs rounded-lg uppercase tracking-wider flex items-center justify-center gap-1.5 transition"
+              className="w-full mt-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/60 font-black text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Pozisyon Ekle
+              <Plus className="w-4 h-4 stroke-[3]" /> Pozisyon Ekle
             </button>
           </div>
 
+          {/* Eklenen Mevkiler Listesi */}
           {positions.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-zinc-800">
-              <span className="block text-[11px] font-semibold text-zinc-400">
-                Eklenen Mevkiler (Yıldız: Ana Mevki)
+            <div className="space-y-2 pt-2 border-t border-[#00d2ff]/25">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-blue-200/70">
+                Eklenen Mevkiler (🌟 Yıldız: Ana Mevki)
               </span>
               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                 {positions.map((item) => (
                   <div
                     key={item.code}
-                    className={`flex items-center justify-between p-2.5 rounded-lg border transition ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
                       item.isMain
-                        ? 'bg-amber-500/10 border-amber-500/40'
-                        : 'bg-zinc-900/60 border-zinc-800'
+                        ? 'bg-[#00d2ff]/15 border-[#00d2ff]/60'
+                        : 'bg-[#061127]/60 border-blue-900/60'
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
@@ -335,29 +425,36 @@ export function PlayerModal({
                         type="button"
                         onClick={() => handleSetMain(item.code)}
                         title={item.isMain ? 'Ana Mevki' : 'Ana Mevki Yap'}
-                        className="p-1 rounded hover:bg-zinc-800 transition"
+                        className="p-1 rounded-lg hover:bg-blue-900/40 transition"
                       >
                         <Star
                           className={`w-4 h-4 ${
                             item.isMain
-                              ? 'text-amber-400 fill-amber-400'
-                              : 'text-zinc-500 hover:text-amber-300'
+                              ? 'text-[#F5D77F] fill-[#F5D77F]'
+                              : 'text-blue-300/40 hover:text-blue-200'
                           }`}
                         />
                       </button>
-                      <span className="text-xs font-bold text-zinc-200">
+                      <span className="text-xs font-bold text-zinc-100">
                         {item.label || getLabelByCode(item.code)}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                        {item.rating || 50}
-                      </span>
+                      <input
+                        type="number"
+                        min={50}
+                        max={99}
+                        value={item.rating || ''}
+                        onChange={(e) => handleUpdatePositionRating(item.code, e.target.value)}
+                        onBlur={() => handlePositionRatingBlur(item.code, item.rating)}
+                        placeholder="OVR"
+                        className="w-14 px-2 py-1 bg-[#040a1b] border border-[#00d2ff]/40 rounded-lg text-xs font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none focus:border-white transition"
+                      />
                       <button
                         type="button"
                         onClick={() => handleDeletePosition(item.code)}
-                        className="text-zinc-500 hover:text-red-400 transition"
+                        className="text-blue-300/50 hover:text-red-400 transition p-1"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -368,19 +465,27 @@ export function PlayerModal({
             </div>
           )}
 
-          <div className="flex items-center gap-3 pt-3 border-t border-zinc-800">
+          {/* Alt Butonlar */}
+          <div className="flex items-center gap-3 pt-3 border-t border-[#00d2ff]/25">
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs rounded-lg transition"
+              disabled={isSubmitting}
+              onClick={handleModalClose}
+              className="flex-1 py-3 bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-500/50 font-bold text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
             >
-              İptal
+              <Ban className="w-4 h-4 stroke-[2.5]" /> İptal
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition"
+              disabled={isSubmitting}
+              className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/80 font-black text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
             >
-              Kaydet
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserCheck className="w-4 h-4 stroke-[2.5]" />
+              )}
+              {isSubmitting ? 'Kaydediliyor...' : 'Kaydet'}
             </button>
           </div>
         </form>

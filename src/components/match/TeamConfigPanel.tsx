@@ -26,19 +26,31 @@ export function TeamConfigPanel() {
   const teamSize = selectedSize;
 
   // Takım İsimleri (Default Boş)
-  const rawAName = teamConfig?.teamAName ?? teamConfig?.team1Name ?? "";
+  const rawAName = teamConfig?.teamAName ?? "";
   const teamAName = rawAName === "Codex Red" ? "" : rawAName;
 
-  const rawBName = teamConfig?.teamBName ?? teamConfig?.team2Name ?? "";
+  const rawBName = teamConfig?.teamBName ?? "";
   const teamBName = rawBName === "Codex Blue" ? "" : rawBName;
 
   // Formasyon mevki değerleri
-  const positions = teamConfig?.positions || teamConfig?.formation || {
-    gk: 1,
-    def: 0,
-    mid: 0,
-    fwd: 0,
-  };
+  const positions = (() => {
+    const formation = teamConfig?.formation;
+    if (typeof formation === "object" && formation !== null) {
+      return {
+        gk: Number((formation as any).gk ?? (formation as any).GK ?? 1),
+        def: Number((formation as any).def ?? (formation as any).DEF ?? 0),
+        mid: Number((formation as any).mid ?? (formation as any).MID ?? 0),
+        fwd: Number((formation as any).fwd ?? (formation as any).FWD ?? 0),
+      };
+    }
+
+    return {
+      gk: 1,
+      def: 0,
+      mid: 0,
+      fwd: 0,
+    };
+  })();
 
   // 🎯 TOPLAM HESAPLAMA (1 KALECİ SABİT + DİĞER MEVKİLER)
   const currentFormationSum =
@@ -56,8 +68,7 @@ export function TeamConfigPanel() {
     if (setTeamConfig) {
       setTeamConfig({
         teamSize: newSize,
-        positions: resetPositions,
-        formation: resetPositions,
+        formation: "1-1-0-0",
       });
     }
   };
@@ -65,9 +76,9 @@ export function TeamConfigPanel() {
   const handleNameChange = (key: "teamAName" | "teamBName", value: string) => {
     if (setTeamConfig) {
       if (key === "teamAName") {
-        setTeamConfig({ teamAName: value, team1Name: value });
+        setTeamConfig({ teamAName: value });
       } else {
-        setTeamConfig({ teamBName: value, team2Name: value });
+        setTeamConfig({ teamBName: value });
       }
     }
   };
@@ -100,8 +111,7 @@ export function TeamConfigPanel() {
     };
 
     setTeamConfig({
-      positions: updatedPositions,
-      formation: updatedPositions,
+      formation: `${updatedPositions.gk}-${updatedPositions.def}-${updatedPositions.mid}-${updatedPositions.fwd}`,
     });
   };
 
@@ -125,8 +135,7 @@ export function TeamConfigPanel() {
     };
 
     setTeamConfig({
-      positions: updatedPositions,
-      formation: updatedPositions,
+      formation: `${updatedPositions.gk}-${updatedPositions.def}-${updatedPositions.mid}-${updatedPositions.fwd}`,
     });
   };
 

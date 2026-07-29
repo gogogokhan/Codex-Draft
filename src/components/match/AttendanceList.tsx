@@ -97,7 +97,7 @@ export function AttendanceList() {
               className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/40 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 transition"
             >
               <CheckSquare className="h-3.5 w-3.5 text-cyan-400" />
-              İlk {required || "?"}'i Seç {teamSize ? `(${teamSize}v${teamSize})` : ""}
+              İlk {required || "?"} oyuncuyu Seç {teamSize ? `(${teamSize}v${teamSize})` : ""}
             </button>
 
             <button

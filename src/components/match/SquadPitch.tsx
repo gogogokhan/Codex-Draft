@@ -136,16 +136,16 @@ export function SquadPitch() {
   }
 
   // Takım verileri
-  const teamAPlayers = draftResult?.teamA?.players || draftResult?.teamA || [];
-  const teamBPlayers = draftResult?.teamB?.players || draftResult?.teamB || [];
+  const teamAPlayers = (draftResult?.teamA ?? []) as any[];
+  const teamBPlayers = (draftResult?.teamB ?? []) as any[];
 
   const teamAName = teamConfig?.teamAName || 'CODEX BLUE';
   const teamBName = teamConfig?.teamBName || 'CODEX RED';
 
   // Takım Ortalama Hesaplama
   const calcAvgRating = (players: any[]) => {
-    if (!players || players.length === 0) return 0;
-    const sum = players.reduce((acc, p) => acc + (p.overall || p.rating || p.ovr || 80), 0);
+    if (!players || players.length === 0) return "0.0";
+    const sum = players.reduce((acc, p) => acc + (Number(p.overall ?? p.rating ?? p.ovr ?? 80) || 0), 0);
     return (sum / players.length).toFixed(1);
   };
 

@@ -63,6 +63,22 @@ function getPlayerStrength(player: any): number {
   return 50;
 }
 
+function isGoalkeeperCandidate(player: any): boolean {
+  if (!player) return false;
+
+  const primaryPos = getPrimaryPosition(player);
+  const primary = (primaryPos || "").toUpperCase();
+  const gkRating = getRatingForPos(player, "GK");
+
+  return (
+    primary === "GK" ||
+    primary.includes("KALECİ") ||
+    primary.includes("GOAL") ||
+    primary.includes("KEEPER") ||
+    gkRating >= 75
+  );
+}
+
 // --- TASLAK MOTORU MANTIĞI ---
 
 function cloneSlots(slots: FormationSlots): FormationSlots {
@@ -144,7 +160,7 @@ function resolvePositionForPlayer(
   candidates.push(bestPos);
 
   const validPositions: Position[] = ["DEF", "MID", "FWD"];
-  const uniqueCandidates = [...new Set(candidates)].filter((p) =>
+  const uniqueCandidates = Array.from(new Set(candidates)).filter((p) =>
     validPositions.includes(p)
   );
 
@@ -218,20 +234,16 @@ function balanceTeams(
   const sorted = sortPlayersByStrength(players);
 
   // 1. Kalecileri Ayır ve Dağıt
-  const gkCandidates = sorted.filter((p) => {
-    const primaryPos = getPrimaryPosition(p);
-    const gkRating = getRatingForPos(p, "GK");
-    return (
-      primaryPos.toUpperCase() === "GK" ||
-      primaryPos.toUpperCase().includes("KALECİ") ||
-      gkRating >= 75
-    );
-  });
+  const gkCandidates = sorted.filter(isGoalkeeperCandidate);
   const others = sorted.filter((p) => !gkCandidates.includes(p));
 
   if (gkCandidates.length >= 2) {
-    tryAssignToTeam(teamA, gkCandidates[0], perTeamSlots, true);
-    tryAssignToTeam(teamB, gkCandidates[1], perTeamSlots, true);
+    const firstTarget = teamTotalPower(teamA) <= teamTotalPower(teamB) ? teamA : teamB;
+    const secondTarget = firstTarget === teamA ? teamB : teamA;
+
+    tryAssignToTeam(firstTarget, gkCandidates[0], perTeamSlots, true);
+    tryAssignToTeam(secondTarget, gkCandidates[1], perTeamSlots, true);
+
     const remainingGks = gkCandidates.slice(2);
     others.unshift(...remainingGks);
   } else if (gkCandidates.length === 1) {
@@ -295,7 +307,7 @@ function balanceTeams(
 }
 
 function fillMissingSlots(team: TeamState, perTeamSlots: FormationSlots): void {
-  const positions: Position[] = ["GK", "DEF", "MID", "FWD"];
+  const positions: Position[] = ["DEF", "MID", "FWD"];
 
   for (const pos of positions) {
     while (team.slotCounts[pos] < perTeamSlots[pos]) {

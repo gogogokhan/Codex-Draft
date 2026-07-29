@@ -25,6 +25,21 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // E-posta format ve geçerli uzantı kontrolü
+    const strictEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com|net|org|edu|gov|io|co|dev|me|info|biz|com\.tr)$/i;
+    
+    if (!strictEmailRegex.test(email)) {
+      setError("Lütfen geçerli ve uzantısı doğru bir e-posta adresi girin (örn: .com, .net, .org).");
+      return;
+    }
+
+    // Kayıt olurken Kullanıcı Adı / Ad Soyad zorunluluğu kontrolü
+    if (mode === "register" && !name.trim()) {
+      setError("Lütfen bir kullanıcı adı girin.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -111,13 +126,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {mode === "register" && (
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-400">
-                Ad Soyad / İsim
+                Kullanıcı Adı <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                 <input
                   type="text"
-                  placeholder="Gökhan"
+                  required
+                  placeholder="Kullanıcı Adı"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-xl border border-zinc-800 bg-zinc-900/80 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-600 focus:border-cyan-500 focus:outline-none"
@@ -128,7 +144,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-400">
-              E-Posta Adresi
+              E-Posta Adresi <span className="text-red-400">*</span>
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
@@ -145,7 +161,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-400">
-              Parola
+              Parola <span className="text-red-400">*</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
