@@ -82,7 +82,7 @@ export function PlayerModal({
     if (activePlayer) {
       setName(activePlayer.name || activePlayer.fullName || '');
 
-      let rawPositions = activePlayer.positions;
+      let rawPositions = activePlayer.positions || activePlayer.ratings;
       if (typeof rawPositions === 'string') {
         try {
           rawPositions = JSON.parse(rawPositions);
@@ -91,7 +91,20 @@ export function PlayerModal({
         }
       }
 
-      if (Array.isArray(rawPositions) && rawPositions.length > 0) {
+      if (typeof rawPositions === 'object' && rawPositions !== null && !Array.isArray(rawPositions)) {
+        // Bu bir ratings nesnesi: { GK: 80, DEF: 75 }
+        const mainPos = activePlayer?.position?.primary || 'MID';
+        const formatted: PositionItem[] = Object.entries(rawPositions)
+          .filter(([code, rating]) => ['GK', 'DEF', 'MID', 'FWD'].includes(code) && Number(rating) > 0)
+          .map(([code, rating]) => ({
+            code: code as 'GK' | 'DEF' | 'MID' | 'FWD',
+            label: getLabelByCode(code),
+            rating: Math.min(99, Math.max(50, Number(rating))),
+            isMain: code === mainPos,
+          }));
+        setPositions(formatted);
+      }
+      else if (Array.isArray(rawPositions) && rawPositions.length > 0) {
         const formatted: PositionItem[] = rawPositions.map((p: any, idx: number) => {
           let item = p;
           if (typeof item === 'string' && item.trim().startsWith('{')) {
@@ -291,6 +304,7 @@ export function PlayerModal({
       const playerData = {
         ...(activePlayer?.id ? { id: activePlayer.id } : {}),
         name: name.trim(),
+        avatar: activePlayer?.avatar || "🧤",
         overall: Math.max(50, Number(mainPosItem.rating) || 50),
         position: { primary: mainPosItem.code },
         mainPosition: mainPosItem.code,

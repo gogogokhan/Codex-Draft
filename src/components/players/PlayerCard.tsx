@@ -115,7 +115,7 @@ export function PlayerCard({
   // 1. MEVKİ VERİLERİNİ TEMİZLE VE ÇEK
   let rawPosList: PositionItem[] = [];
 
-  let positionsData = player.positions;
+  let positionsData = player.positions || player.ratings;
   
   if (typeof positionsData === "string") {
     try {
@@ -124,6 +124,23 @@ export function PlayerCard({
       positionsData = null;
     }
   }
+
+  if (typeof positionsData === 'object' && positionsData !== null && !Array.isArray(positionsData)) {
+    // Bu bir ratings nesnesi: { GK: 80, DEF: 75 }
+    const mainPos = player?.position?.primary || 'MID';
+    rawPosList = Object.entries(positionsData)
+      .filter(([code, rating]) => code !== 'id' && code !== 'name' && code !== 'avatar' && code !== 'position' && code !== 'overall' && Number(rating) > 0)
+      .map(([code, rating]) => {
+        const upperCode = code.toUpperCase();
+        return {
+          code: upperCode,
+          label: upperCode,
+          rating: Number(rating),
+          isMain: upperCode === mainPos,
+        };
+      });
+  }
+
 
   if (Array.isArray(positionsData) && positionsData.length > 0) {
     rawPosList = positionsData.map((p: any) => {
@@ -151,7 +168,7 @@ export function PlayerCard({
       };
     });
   } else {
-    const mainCode = extractPosCode(
+    const mainCode = extractPosCode( 
       player.mainPosition || player.position || player.POSITION || positionsData
     );
     const mainRating = Number(player.overall || player.rating || 80);

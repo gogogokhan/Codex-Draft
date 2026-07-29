@@ -55,7 +55,18 @@ const getPrimaryPositionCode = (player: any): string => {
   }
 
   const normalized = candidates
-    .map((value) => String(value).trim().toUpperCase())
+    .map((value) =>
+      String(value)
+        .trim()
+        .toUpperCase()
+        .replace(/İ/g, 'I')
+        .replace(/ı/g, 'I')
+        .replace(/[ç]/gi, 'C')
+        .replace(/[ğ]/gi, 'G')
+        .replace(/[ş]/gi, 'S')
+        .replace(/[ö]/gi, 'O')
+        .replace(/[ü]/gi, 'U')
+    )
     .filter(Boolean);
 
   const cleanPos = normalized.find((value) => value.length > 0) ?? '';
@@ -65,7 +76,7 @@ const getPrimaryPositionCode = (player: any): string => {
     cleanPos === 'KL' ||
     cleanPos.includes('GK') ||
     cleanPos.includes('KL') ||
-    cleanPos.includes('KALECİ') ||
+    cleanPos.includes('KALECI') ||
     cleanPos.includes('GOALKEEPER') ||
     cleanPos.includes('KEEPER')
   ) {
@@ -98,7 +109,7 @@ const getPrimaryPositionCode = (player: any): string => {
     cleanPos === 'RM' ||
     cleanPos.includes('MID') ||
     cleanPos.includes('ORTA') ||
-    cleanPos.includes('MİD')
+    cleanPos.includes('OS')
   ) {
     return 'MID';
   }
@@ -119,12 +130,10 @@ const getPrimaryPositionCode = (player: any): string => {
     return 'FWD';
   }
 
-  return '';
+  return 'MID';
 };
 
-const getPositionOrder = (player: any): number => {
-  const positionCode = getPrimaryPositionCode(player);
-
+const getPositionOrder = (positionCode: string): number => {
   switch (positionCode) {
     case 'GK':
       return 1;
@@ -152,82 +161,84 @@ export function PlayerPool({
   const getPlayerRating = (player: any, positionCode?: string): number => {
     const resolvedPosition = positionCode ?? getPrimaryPositionCode(player);
 
-    if (resolvedPosition) {
-      const normalizedPosition = resolvedPosition.toUpperCase();
-
-      if (player?.ratings && typeof player.ratings === 'object') {
-        const directRating = player.ratings[normalizedPosition];
-        if (typeof directRating === 'number') {
-          return directRating;
-        }
-      }
-
-      if (Array.isArray(player?.positions) && player.positions.length > 0) {
-        const matchingPosition = player.positions.find((item: any) => {
-          const itemCode = String(item?.code ?? item?.primary ?? item?.name ?? item?.value ?? item?.label ?? '').trim().toUpperCase();
-          return itemCode === normalizedPosition || itemCode.includes(normalizedPosition);
-        }) || player.positions.find((item: any) => item?.isMain) || player.positions[0];
-
-        const rating = Number(matchingPosition?.rating ?? matchingPosition?.RATING ?? matchingPosition?.value ?? 0);
-        if (!Number.isNaN(rating) && rating > 0) {
-          return rating;
-        }
+    // PRIMARY POSITION RATING'İNİ AL
+    if (resolvedPosition && player?.ratings && typeof player.ratings === "object") {
+      const rating = player.ratings[resolvedPosition];
+      if (typeof rating === "number" && rating > 0) {
+        return rating;
       }
     }
 
-    if (player?.ratings && typeof player.ratings === 'object') {
-      const ratings = Object.values(player.ratings).filter((value): value is number => typeof value === 'number');
-      if (ratings.length > 0) {
-        return Math.max(...ratings);
-      }
-    }
-
-    return Number(player?.overall ?? player?.rating ?? player?.ovr ?? 50);
+    // FALLBACK: OVERALL RATING
+    return Number(player?.overall ?? player?.rating ?? 50);
   };
 
   const sortedPlayers = useMemo(() => {
     if (!Array.isArray(players)) return [];
 
     return [...players].sort((a, b) => {
-      const posOrderA = getPositionOrder(a);
-      const posOrderB = getPositionOrder(b);
       const positionCodeA = getPrimaryPositionCode(a);
       const positionCodeB = getPrimaryPositionCode(b);
+      const posOrderA = getPositionOrder(positionCodeA);
+      const posOrderB = getPositionOrder(positionCodeB);
       const ratingA = getPlayerRating(a, positionCodeA);
       const ratingB = getPlayerRating(b, positionCodeB);
       const nameA = (a.name || '').localeCompare(b.name || '', 'tr');
 
       switch (sortOption) {
-        case 'rating-desc':
-          return ratingB - ratingA;
+        // 1. REYTİNG EN YÜKSEK: 99 > 98 > ... > 50
+        // Aynı rating'de: GK > DEF > MID > FWD
+        case 'rating-desc': {
+          if (ratingB !== ratingA) {
+            return ratingB - ratingA;
+          }
+          return posOrderA - posOrderB;
+        }
 
-        case 'rating-asc':
-          return ratingA - ratingB;
+        // 2. REYTİNG EN DÜŞÜK: 50 < 51 < ... < 99
+        // Aynı rating'de: GK > DEF > MID > FWD
+        case 'rating-asc': {
+          if (ratingA !== ratingB) {
+            return ratingA - ratingB;
+          }
+          return posOrderA - posOrderB;
+        }
 
+        // 3. İSİM A-Z
         case 'name-asc':
           return nameA;
 
+        // 4. İSİM Z-A
         case 'name-desc':
           return (b.name || '').localeCompare(a.name || '', 'tr');
 
-        case 'pos-rating':
+        // 5. MEVKİ (GK ➔ FWD)
+        // İçinde: Rating büyükten küçüğe
         case 'pos-asc': {
           if (posOrderA !== posOrderB) {
             return posOrderA - posOrderB;
           }
-
-          const samePositionRatingDiff = ratingB - ratingA;
-          if (samePositionRatingDiff !== 0) {
-            return samePositionRatingDiff;
-          }
-
-          return nameA;
+          // Aynı position'da rating yüksekten düşüğe
+          return ratingB - ratingA;
         }
 
+        // 6. MEVKİ, SONRA REYTİNG
+        // Önce mevki (GK > DEF > MID > FWD), sonra rating (99 > 50)
+        case 'pos-rating': {
+          if (posOrderA !== posOrderB) {
+            return posOrderA - posOrderB;
+          }
+          // Aynı mevkide rating yüksekten düşüğe
+          return ratingB - ratingA;
+        }
+
+        // 7. REYTİNG, SONRA MEVKİ
+        // Önce rating (99 > 50), sonra mevki (GK > DEF > MID > FWD)
         case 'rating-pos': {
           if (ratingB !== ratingA) {
             return ratingB - ratingA;
           }
+          // Aynı rating'de mevki sırası
           return posOrderA - posOrderB;
         }
 

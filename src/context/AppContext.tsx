@@ -67,64 +67,132 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 };
 
 const normalizePositionCode = (value: unknown): Position => {
-  const raw = String(value ?? "").trim().toUpperCase();
-  if (raw.includes("GK") || raw === "KL" || raw.includes("KALECİ") || raw.includes("KEEPER")) {
+  // Türkçe karakterleri normalize et
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/İ/g, "I")    // Türkçe İ → I
+    .replace(/ı/g, "I")    // Türkçe ı → I
+    .replace(/[ç]/gi, "C")
+    .replace(/[ğ]/gi, "G")
+    .replace(/[ş]/gi, "S")
+    .replace(/[ö]/gi, "O")
+    .replace(/[ü]/gi, "U");
+
+  // GK: Kaleci
+  if (
+    raw.includes("GK") ||
+    raw === "KL" ||
+    raw.includes("KALECI") ||
+    raw.includes("KALECI") ||
+    raw.includes("GOALKEEPER") ||
+    raw.includes("KEEPER") ||
+    raw.includes("GOEL")
+  ) {
     return "GK";
   }
-  if (raw.includes("DEF") || raw.includes("BEK") || raw.includes("STOPPER")) {
+
+  // DEF: Defans / Bek
+  if (
+    raw.includes("DEF") ||
+    raw.includes("BEK") ||
+    raw.includes("STOPPER") ||
+    raw.includes("DEFANS") ||
+    raw.includes("DF") ||
+    raw.includes("CB") ||
+    raw.includes("LB") ||
+    raw.includes("RB") ||
+    raw.includes("LWB") ||
+    raw.includes("RWB")
+  ) {
     return "DEF";
   }
-  if (raw.includes("MID") || raw.includes("ORTA") || raw.includes("OS")) {
+
+  // MID: Orta saha
+  if (
+    raw.includes("MID") ||
+    raw.includes("ORTA") ||
+    raw.includes("OS") ||
+    raw.includes("CM") ||
+    raw.includes("CAM") ||
+    raw.includes("CDM") ||
+    raw.includes("LM") ||
+    raw.includes("RM")
+  ) {
     return "MID";
   }
-  if (raw.includes("FWD") || raw.includes("FORVET") || raw.includes("FOR") || raw.includes("ST")) {
+
+  // FWD: Forvet
+  if (
+    raw.includes("FWD") ||
+    raw.includes("FORVET") ||
+    raw.includes("FOR") ||
+    raw.includes("ST") ||
+    raw.includes("CF") ||
+    raw.includes("LW") ||
+    raw.includes("RW") ||
+    raw.includes("STRIKER")
+  ) {
     return "FWD";
   }
+
+  // Default MID
   return "MID";
 };
 
 const normalizePlayer = (player: any): Player => {
-  const positionsArray = Array.isArray(player?.positions) ? player.positions : [];
-  const positionEntries = positionsArray.map((item: any) => {
-    if (typeof item === "string") {
-      return { code: normalizePositionCode(item), rating: Number(player?.overall ?? 50) || 50 };
-    }
+  if (!player) return null as any;
 
-    if (item && typeof item === "object") {
-      const code = normalizePositionCode(item.code ?? item.primary ?? item.name ?? item.value ?? item.label);
-      const rating = Number(item.rating ?? item.RATING ?? player?.overall ?? 50) || 50;
-      return { code, rating };
-    }
-
-    return null;
-  }).filter(Boolean) as Array<{ code: Position; rating: number }>;
-
+  // 1. PRIMARY POSITION'U BEL
   const primaryPosition = normalizePositionCode(
-    player?.position?.primary ?? player?.position?.code ?? player?.position ?? player?.mainPosition ?? player?.pos ?? player?.role
+    player?.position?.primary ?? player?.position?.code ?? player?.position ?? 
+    player?.mainPosition ?? player?.pos ?? player?.role ?? 'MID'
   );
 
-  const ratings = {
+  // 2. RATINGS OBJECT'İNİ OLUŞTUR
+  const ratings: { GK: number; DEF: number; MID: number; FWD: number } = {
     GK: 0,
     DEF: 0,
     MID: 0,
     FWD: 0,
   };
 
-  if (positionEntries.length > 0) {
-    positionEntries.forEach((entry) => {
-      ratings[entry.code] = entry.rating;
+  // A. Eğer player.positions array'i varsa, oradan ratingleri çıkar
+  if (Array.isArray(player?.positions) && player.positions.length > 0) {
+    player.positions.forEach((item: any) => {
+      if (item && typeof item === "object") {
+        const code = normalizePositionCode(item.code ?? item.primary ?? item.name ?? item.value ?? item.label);
+        const rating = Number(item.rating ?? item.RATING ?? item.value ?? 0);
+        if (rating > 0) {
+          ratings[code] = rating;
+        }
+      }
     });
   }
 
+  // B. Sonra player.ratings object'ini override et (bu, DB'den direct gelmiş olabilir)
   if (typeof player?.ratings === "object" && player?.ratings !== null) {
     Object.entries(player.ratings).forEach(([key, value]) => {
-      if (key in ratings && typeof value === "number") {
+      if (key in ratings && typeof value === "number" && value > 0) {
         ratings[key as keyof typeof ratings] = value;
       }
     });
   }
 
-  const overall = Number(player?.overall ?? player?.rating ?? player?.ovr ?? ratings[primaryPosition] ?? 50) || 50;
+  // C. Eğer tüm ratings hala 0 ise, overall'dan fill et
+  const overallRating = Number(player?.overall ?? player?.rating ?? player?.ovr ?? 0) || 0;
+  const primaryPositionHasRating = ratings[primaryPosition] > 0;
+  
+  if (!primaryPositionHasRating && overallRating > 0) {
+    // Overall rating'i primary position'a ata
+    ratings[primaryPosition] = overallRating;
+    // Eğer diğer ratings da 0 ise, overall'dan fill et (muhafazakar)
+    Object.keys(ratings).forEach((key) => {
+      if (ratings[key as keyof typeof ratings] === 0 && key !== primaryPosition) {
+        ratings[key as keyof typeof ratings] = Math.max(50, overallRating - 5);
+      }
+    });
+  }
 
   return {
     id: String(player?.id ?? ""),
@@ -135,8 +203,7 @@ const normalizePlayer = (player: any): Player => {
       primary: primaryPosition,
       secondary: undefined,
     },
-    overall,
-    positions: positionEntries.length > 0 ? positionEntries : undefined as any,
+    overall: overallRating || ratings[primaryPosition] || 50,
   } as Player;
 };
 
@@ -313,12 +380,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           name: player.name,
           overall: (player as any).overall ?? 80,
-          positions: (player as any).positions ?? {
-            gk: 0,
-            def: 0,
-            mid: 0,
-            fwd: 0,
-          },
+          positions: (player as any).positions ?? [],
         })
         .select()
         .single();
@@ -339,17 +401,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .update({
         name: player.name,
         overall: (player as any).overall ?? 80,
-        positions: (player as any).positions ?? {
-          gk: 0,
-          def: 0,
-          mid: 0,
-          fwd: 0,
-        },
+        positions: (player as any).positions ?? [],
       })
       .eq("id", player.id);
 
     if (!error) {
-      setPlayers((prev) => prev.map((p) => (p.id === player.id ? player : p)));
+      const normalizedPlayer = normalizePlayer(player);
+      setPlayers((prev) => prev.map((p) => (p.id === player.id ? normalizedPlayer : p)));
     } else {
       console.error("Oyuncu güncellenirken hata:", error.message);
     }
