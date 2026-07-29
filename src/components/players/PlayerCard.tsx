@@ -29,15 +29,40 @@ const POSITION_ORDER: Record<string, number> = {
   FWD: 4,
 };
 
+// 🛡️ HER TÜRLÜ VERİ TİPİNİ GÜVENLE YALNIZCA STRİNG MEVKİ KODUNA ÇEVİRİR
 const extractPosCode = (val: any): string => {
-  if (!val) return "ST";
-  if (typeof val === "string") return val;
-  if (typeof val === "object") {
-    if (typeof val.primary === "string") return val.primary;
-    if (typeof val.code === "string") return val.code;
-    if (typeof val.label === "string") return val.label;
+  if (!val) return "MID";
+  
+  // Eğer string geldiyse ve "{...}" şeklinde JSON string'i ise parse etmeyi dene
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return extractPosCode(parsed);
+      } catch {
+        return trimmed.toUpperCase();
+      }
+    }
+    return trimmed.toUpperCase();
   }
-  return "ST";
+  
+  if (typeof val === "number") return String(val);
+
+  if (typeof val === "object") {
+    // Büyük / Küçük harf ve farklı key varyasyonları
+    const rawCode =
+      val.code ??
+      val.CODE ??
+      val.primary ??
+      val.PRIMARY ??
+      val.label ??
+      val.LABEL;
+
+    if (rawCode) return extractPosCode(rawCode);
+  }
+  
+  return "MID";
 };
 
 export function PlayerCard({
@@ -54,7 +79,6 @@ export function PlayerCard({
 
   if (!player) return null;
 
-  // 🎯 TIKLAMA OLAYI FIX: Hem player objesini hem de olayı güvenle fırlatır
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onClick) {
@@ -84,18 +108,50 @@ export function PlayerCard({
 
   const name = String(player.name || player.fullName || "OYUNCU").toUpperCase();
 
-  // 1. MEVKİ VERİLERİNİ ÇEK
+  // 1. MEVKİ VERİLERİNİ TEMİZLE VE ÇEK
   let rawPosList: PositionItem[] = [];
 
-  if (Array.isArray(player.positions) && player.positions.length > 0) {
-    rawPosList = player.positions.map((p: any) => ({
-      code: extractPosCode(p.code || p.primary || p),
-      label: typeof p.label === "string" ? p.label : extractPosCode(p),
-      rating: Number(p.rating || player.overall || player.rating || 80),
-      isMain: Boolean(p.isMain),
-    }));
+  let positionsData = player.positions;
+  
+  // Eger positions bir JSON string'i olarak geldiyse parse et
+  if (typeof positionsData === "string") {
+    try {
+      positionsData = JSON.parse(positionsData);
+    } catch {
+      positionsData = null;
+    }
+  }
+
+  if (Array.isArray(positionsData) && positionsData.length > 0) {
+    rawPosList = positionsData.map((p: any) => {
+      // Obje JSON string olarak p'nin içine düşmüşse parse et
+      let item = p;
+      if (typeof item === "string" && item.trim().startsWith("{")) {
+        try {
+          item = JSON.parse(item);
+        } catch {}
+      }
+
+      const codeStr = extractPosCode(item);
+      const ratingVal =
+        item?.rating ??
+        item?.RATING ??
+        player.overall ??
+        player.rating ??
+        80;
+      const isMainVal = Boolean(item?.isMain ?? item?.ISMAIN ?? item?.is_main);
+
+      return {
+        code: codeStr,
+        label: codeStr,
+        rating: Number(ratingVal),
+        isMain: isMainVal,
+      };
+    });
   } else {
-    const mainCode = extractPosCode(player.mainPosition || player.position);
+    const mainCode = extractPosCode(
+      player.mainPosition || player.position || player.POSITION || positionsData
+    );
     const mainRating = Number(player.overall || player.rating || 80);
     rawPosList = [
       {
@@ -110,12 +166,12 @@ export function PlayerCard({
   // 2. ANA MEVKİ VE REYTİNG
   const mainPosItem = rawPosList.find((p) => p.isMain) || rawPosList[0];
   const overallRating = mainPosItem ? mainPosItem.rating : 80;
-  const mainPosCode = mainPosItem ? mainPosItem.code : "DEF";
+  const mainPosCode = mainPosItem ? mainPosItem.code : "GK";
 
-  // 3. MEVKİLERİ SIRALA (GK -> DEF -> MID -> FWD)
+  // 3. MEVKİLERİ SIRALA
   const posList = [...rawPosList].sort((a, b) => {
-    const orderA = POSITION_ORDER[a.code.toUpperCase()] || 99;
-    const orderB = POSITION_ORDER[b.code.toUpperCase()] || 99;
+    const orderA = POSITION_ORDER[String(a.code).toUpperCase()] || 99;
+    const orderB = POSITION_ORDER[String(b.code).toUpperCase()] || 99;
     return orderA - orderB;
   });
 
@@ -129,7 +185,6 @@ export function PlayerCard({
       ? "grid-cols-3"
       : "grid-cols-4";
 
-  // 🎨 TOTY MAVİ SEÇİM VE PARLAMA STİLLERİ
   const isDimmed = selectable && !selected;
 
   const containerStyle = `
@@ -140,8 +195,7 @@ export function PlayerCard({
   `;
 
   const CardContent = (
-    <div onClick={handleClick} className={containerStyle}>
-      
+    <div className={containerStyle}>
       {/* 🔵 TOTY MAVİ SEÇİM ROZETİ */}
       {selectable && (
         <div
@@ -171,6 +225,7 @@ export function PlayerCard({
       <img
         src="/card-template.png"
         alt="TOTY Card Template"
+        draggable={false}
         className="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none"
       />
 
@@ -180,7 +235,7 @@ export function PlayerCard({
           {overallRating}
         </span>
         <span className="font-black block text-[#D4AF37] uppercase tracking-wider leading-none mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-[13px]">
-          {String(mainPosCode)}
+          {extractPosCode(mainPosCode)}
         </span>
       </div>
 
@@ -190,6 +245,7 @@ export function PlayerCard({
           <img
             src={player.imageUrl}
             alt={name}
+            draggable={false}
             className="w-full h-full object-contain object-bottom transition-transform duration-300"
           />
         ) : (
@@ -208,7 +264,7 @@ export function PlayerCard({
       <div className="absolute top-[72.5%] inset-x-[15%] z-20 text-center pointer-events-none">
         <div className={`grid ${gridColsClass} text-center font-black text-[#D4AF37] uppercase tracking-wider text-[12px]`}>
           {posList.map((item, idx) => (
-            <span key={idx}>{String(item.code)}</span>
+            <span key={idx}>{extractPosCode(item.code)}</span>
           ))}
         </div>
       </div>
@@ -217,7 +273,7 @@ export function PlayerCard({
       <div className="absolute top-[75.5%] inset-x-[15%] z-20 text-center pointer-events-none">
         <div className={`grid ${gridColsClass} text-center font-black text-[#F5D77F] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] text-[14px]`}>
           {posList.map((item, idx) => (
-            <span key={idx}>{String(item.rating)}</span>
+            <span key={idx}>{Number(item.rating) || 80}</span>
           ))}
         </div>
       </div>
@@ -227,13 +283,19 @@ export function PlayerCard({
   return (
     <>
       {compact ? (
-        <div className="group relative w-[110px] h-[165px] flex items-center justify-center shrink-0 cursor-pointer">
+        <div 
+          onClick={handleClick}
+          className="group relative w-[110px] h-[165px] flex items-center justify-center shrink-0 cursor-pointer"
+        >
           <div className="scale-[0.4583] origin-center pointer-events-none">
             {CardContent}
           </div>
         </div>
       ) : (
-        <div className="relative inline-block cursor-pointer select-none">
+        <div 
+          onClick={handleClick}
+          className="relative inline-block cursor-pointer select-none"
+        >
           {CardContent}
         </div>
       )}

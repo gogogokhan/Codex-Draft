@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckSquare, Square, Users, AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
+import {
+  CheckSquare,
+  Square,
+  Users,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowRight,
+  Zap,
+  Shield,
+} from "lucide-react";
 import { PlayerCard } from "@/components/players/PlayerCard";
 import { useApp } from "@/context/AppContext";
 
@@ -14,6 +23,8 @@ export function AttendanceList() {
     teamConfig,
     isAdmin,
     setActiveTab,
+    draftMode,
+    setDraftMode,
   } = useApp();
 
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
@@ -66,6 +77,7 @@ export function AttendanceList() {
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
+      {/* BAŞLIK VE HIZLI SEÇİM BUTONLARI */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-bold text-white">
@@ -109,6 +121,47 @@ export function AttendanceList() {
           <span>{warningMessage}</span>
         </div>
       )}
+
+      {/* 🎯 TAKIM DENGELEME KRİTERİ SEÇİM ALANI */}
+      <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <Zap className="h-4 w-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-zinc-200">Dengeleme Kriteri</h4>
+            <p className="text-[11px] text-zinc-400">Takımların hangi metoda göre kurulacağını seçin</p>
+          </div>
+        </div>
+
+        <div className="flex w-full sm:w-auto gap-2">
+          <button
+            type="button"
+            onClick={() => setDraftMode("overall")}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition-all ${
+              draftMode === "overall"
+                ? "bg-cyan-400 text-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+                : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800"
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5" />
+            <span>Genel Rating (OVR)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDraftMode("positional")}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition-all ${
+              draftMode === "positional"
+                ? "bg-cyan-400 text-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+                : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800"
+            }`}
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span>Mevki Dağılımlı</span>
+          </button>
+        </div>
+      </div>
 
       {/* TOTY MAVİSİ - KIRMIZI DURUM ÇUBUĞU */}
       <div
@@ -160,6 +213,7 @@ export function AttendanceList() {
         </button>
       </div>
 
+      {/* OYUNCU KARTLARI GRİDİ */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {players.map((player: any) => (
           <PlayerCard

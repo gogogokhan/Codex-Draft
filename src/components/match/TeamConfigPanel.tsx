@@ -1,19 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Swords, Plus, Minus, Check, Users } from "lucide-react";
+import { Plus, Minus, Check, Users, AlertCircle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
 export function TeamConfigPanel() {
   const {
     teamConfig,
     setTeamConfig,
-    attendance = [],
-    generateTeams,
+    setCurrentStep,
     setActiveTab,
   } = useApp();
 
-  // 🎯 DEFAULT SEÇİLMEMİŞ GELMESİ İÇİN LOCAL STATE (null Başlangıç)
+  // LOCAL STATE (null Başlangıç)
   const [selectedSize, setSelectedSize] = useState<number | null>(
     teamConfig?.teamSize || null
   );
@@ -25,88 +24,140 @@ export function TeamConfigPanel() {
   }, [teamConfig?.teamSize]);
 
   const teamSize = selectedSize;
-  const required = teamSize ? teamSize * 2 : 0;
-  const isEnough = teamSize ? attendance.length === required : false;
-  const missingCount = teamSize ? required - attendance.length : 0;
 
-  const teamAName = teamConfig?.teamAName || teamConfig?.team1Name || "Codex Red";
-  const teamBName = teamConfig?.teamBName || teamConfig?.team2Name || "Codex Blue";
+  // Takım İsimleri (Default Boş)
+  const rawAName = teamConfig?.teamAName ?? teamConfig?.team1Name ?? "";
+  const teamAName = rawAName === "Codex Red" ? "" : rawAName;
+
+  const rawBName = teamConfig?.teamBName ?? teamConfig?.team2Name ?? "";
+  const teamBName = rawBName === "Codex Blue" ? "" : rawBName;
 
   // Formasyon mevki değerleri
   const positions = teamConfig?.positions || teamConfig?.formation || {
     gk: 1,
-    def: 2,
-    mid: 3,
-    fwd: 1,
+    def: 0,
+    mid: 0,
+    fwd: 0,
   };
 
-  // 🎯 TIKLANDIĞINDA ANINDA SEÇİMİ GÜNCELLEYEN FONKSİYON
+  // 🎯 TOPLAM HESAPLAMA (1 KALECİ SABİT + DİĞER MEVKİLER)
+  const currentFormationSum =
+    1 +
+    (Number(positions.def) || 0) +
+    (Number(positions.mid) || 0) +
+    (Number(positions.fwd) || 0);
+
+  // 🎯 TAKIM BOYUTU SEÇİLDİĞİNDE FORMASYONU TEMİZLE (KALECİ 1 KALIR, DİĞERLERİ 0)
   const handleTeamSizeChange = (newSize: number) => {
     setSelectedSize(newSize);
+
+    const resetPositions = { gk: 1, def: 0, mid: 0, fwd: 0 };
+
     if (setTeamConfig) {
-      setTeamConfig((prev: any) => ({
-        ...prev,
+      setTeamConfig({
         teamSize: newSize,
-      }));
+        positions: resetPositions,
+        formation: resetPositions,
+      });
     }
   };
 
-  const handleNameChange = (key: string, value: string) => {
+  const handleNameChange = (key: "teamAName" | "teamBName", value: string) => {
     if (setTeamConfig) {
-      setTeamConfig((prev: any) => ({
-        ...prev,
-        [key]: value,
-      }));
+      if (key === "teamAName") {
+        setTeamConfig({ teamAName: value, team1Name: value });
+      } else {
+        setTeamConfig({ teamBName: value, team2Name: value });
+      }
     }
   };
 
-  const handlePosChange = (posKey: string, delta: number) => {
-    if (!setTeamConfig) return;
-    const currentVal = positions[posKey] || 0;
-    const newVal = Math.max(0, currentVal + delta);
+  // 🎯 DİNAMİK MAX KONTROL YARDIMCISI (Diğer Mevkilerin Toplamını Çıkararak Boş Kontenjanı Bulur)
+  const getMaxAllowedForPos = (posKey: "def" | "mid" | "fwd") => {
+    if (!teamSize) return 0;
+    const otherSum =
+      (posKey !== "def" ? Number(positions.def) || 0 : 0) +
+      (posKey !== "mid" ? Number(positions.mid) || 0 : 0) +
+      (posKey !== "fwd" ? Number(positions.fwd) || 0 : 0);
 
-    setTeamConfig((prev: any) => {
-      const updatedPositions = {
-        ...(prev.positions || prev.formation || positions),
-        [posKey]: newVal,
-      };
-      return {
-        ...prev,
-        positions: updatedPositions,
-        formation: updatedPositions,
-      };
+    return Math.max(0, teamSize - 1 - otherSum); // Kaleci (1) çıkartılıyor
+  };
+
+  // 🎯 BUTONLAR İLE ARTTIRMA / AZALTMA KONTROLÜ
+  const handlePosChange = (posKey: "def" | "mid" | "fwd", delta: number) => {
+    if (!setTeamConfig) return;
+    const currentVal = Number(positions[posKey]) || 0;
+    const maxAllowed = getMaxAllowedForPos(posKey);
+
+    if (delta > 0 && currentVal >= maxAllowed) return;
+
+    const newVal = Math.max(0, Math.min(currentVal + delta, maxAllowed));
+
+    const updatedPositions = {
+      ...positions,
+      gk: 1,
+      [posKey]: newVal,
+    };
+
+    setTeamConfig({
+      positions: updatedPositions,
+      formation: updatedPositions,
     });
   };
 
-  const currentFormationSum =
-    (positions.gk || 1) +
-    (positions.def || 0) +
-    (positions.mid || 0) +
-    (positions.fwd || 0);
+  // 🎯 KLAVYEDEN MANUEL SAYI GİRİŞİ KONTROLÜ (Sıfır Temizleme + Kısıtlama Sınırı)
+  const handlePosInputChange = (posKey: "def" | "mid" | "fwd", rawValue: string) => {
+    if (!setTeamConfig) return;
 
-  const handleGenerate = () => {
-    if (!isEnough) return;
-    if (generateTeams) generateTeams();
-    if (setActiveTab) setActiveTab("squad");
+    // Baştaki sıfırları ayıkla ('01' -> '1', '005' -> '5')
+    const cleanValue = rawValue.replace(/^0+(?=\d)/, "");
+    let parsed = parseInt(cleanValue, 10);
+    if (isNaN(parsed)) parsed = 0;
+
+    // Kalan maks kontanjanı hesapla ve girilen değeri sınırla
+    const maxAllowed = getMaxAllowedForPos(posKey);
+    const clampedValue = Math.min(Math.max(0, parsed), maxAllowed);
+
+    const updatedPositions = {
+      ...positions,
+      gk: 1,
+      [posKey]: clampedValue,
+    };
+
+    setTeamConfig({
+      positions: updatedPositions,
+      formation: updatedPositions,
+    });
   };
 
-  // Takım boyutu buton seçenekleri
+  const handleNextStep = () => {
+    if (!selectedSize || currentFormationSum !== selectedSize) return;
+    if (setCurrentStep) {
+      setCurrentStep("attendance");
+    } else if (setActiveTab) {
+      setActiveTab("attendance");
+    }
+  };
+
   const SIZES = [5, 6, 7, 8, 9, 10, 11];
 
+  // Limit doldu mu kontrolü
+  const isMaxReached = Boolean(teamSize && currentFormationSum >= teamSize);
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 mt-6 space-y-6">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-6">
       {/* BAŞLIK */}
       <div className="border-b border-zinc-800/80 pb-3">
         <div className="flex items-center gap-2 text-lg font-bold text-white">
           <span className="text-xl">⚙️</span>
-          <h3>Maç Ayarları</h3>
+          <h3>1. Maç Ayarları</h3>
         </div>
         <p className="text-xs text-zinc-400 mt-1">
           Takım boyutu, formasyon ve takım isimlerini belirleyin
         </p>
       </div>
 
-      {/* 1. TOTY MAVİSİ TAKIM BOYUTU BUTONLARI (DEFAULT SEÇİLMEMİŞ) */}
+      {/* 1. TAKIM BOYUTU BUTONLARI */}
       <div className="rounded-xl bg-zinc-950/70 border border-zinc-800/80 p-4 space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className="font-bold text-zinc-200 flex items-center gap-2">
@@ -114,7 +165,6 @@ export function TeamConfigPanel() {
             Takım Boyutu
           </span>
 
-          {/* SAĞ ÜST ROZET */}
           {teamSize ? (
             <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.25)]">
               Toplam {teamSize * 2} Oyuncu ({teamSize}v{teamSize})
@@ -126,7 +176,6 @@ export function TeamConfigPanel() {
           )}
         </div>
 
-        {/* 🎮 5v5 -> 11v11 TOTY MAVİSİ BUTON GRUBU */}
         <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
           {SIZES.map((size) => {
             const isActive = selectedSize === size;
@@ -155,20 +204,23 @@ export function TeamConfigPanel() {
       <div className="rounded-xl bg-zinc-950/70 border border-zinc-800/80 p-4 space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className="font-bold text-zinc-200">Formasyon & Mevki Dağılımı</span>
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 ${
-              teamSize && currentFormationSum === teamSize
-                ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
-                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-            }`}
-          >
-            <Check className="w-3.5 h-3.5" />
-            Tam Kadro ({currentFormationSum}/{teamSize || "?"})
-          </span>
+
+          {/* ROZET */}
+          {teamSize && currentFormationSum === teamSize ? (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+              <Check className="w-3.5 h-3.5 text-cyan-400" />
+              Mevki Toplamı ({currentFormationSum}/{teamSize})
+            </span>
+          ) : (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-red-500/15 text-red-400 border border-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse">
+              <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+              Mevki Toplamı ({currentFormationSum}/{teamSize || "?"})
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* KALECİ */}
+          {/* KALECİ (SABİT 1) */}
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-2.5 text-center flex flex-col justify-between">
             <span className="text-[11px] text-zinc-400 font-medium">Kaleci</span>
             <div className="text-sm font-black text-cyan-400 my-1">1</div>
@@ -182,17 +234,32 @@ export function TeamConfigPanel() {
               <button
                 type="button"
                 onClick={() => handlePosChange("def", -1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.def ?? 0) <= 0}
+                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="text-sm font-black text-white w-4 text-center">
-                {positions.def ?? 2}
-              </span>
+
+              {/* 🎯 SIFIR SİLME VE MAX SINIROLU INPUT */}
+              <input
+                type="number"
+                min={0}
+                max={getMaxAllowedForPos("def")}
+                value={positions.def === 0 ? "" : positions.def}
+                placeholder="0"
+                onChange={(e) => handlePosInputChange("def", e.target.value)}
+                className="w-10 text-center bg-zinc-950 border border-zinc-800 rounded py-0.5 text-xs font-black text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+
               <button
                 type="button"
                 onClick={() => handlePosChange("def", 1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.def ?? 0) >= getMaxAllowedForPos("def")}
+                className={`w-6 h-6 rounded text-xs font-bold transition flex items-center justify-center ${
+                  (positions.def ?? 0) >= getMaxAllowedForPos("def")
+                    ? "bg-zinc-800/40 text-zinc-600 cursor-not-allowed opacity-40"
+                    : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
+                }`}
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -206,17 +273,32 @@ export function TeamConfigPanel() {
               <button
                 type="button"
                 onClick={() => handlePosChange("mid", -1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.mid ?? 0) <= 0}
+                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="text-sm font-black text-white w-4 text-center">
-                {positions.mid ?? 3}
-              </span>
+
+              {/* 🎯 SIFIR SİLME VE MAX SINIROLU INPUT */}
+              <input
+                type="number"
+                min={0}
+                max={getMaxAllowedForPos("mid")}
+                value={positions.mid === 0 ? "" : positions.mid}
+                placeholder="0"
+                onChange={(e) => handlePosInputChange("mid", e.target.value)}
+                className="w-10 text-center bg-zinc-950 border border-zinc-800 rounded py-0.5 text-xs font-black text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+
               <button
                 type="button"
                 onClick={() => handlePosChange("mid", 1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.mid ?? 0) >= getMaxAllowedForPos("mid")}
+                className={`w-6 h-6 rounded text-xs font-bold transition flex items-center justify-center ${
+                  (positions.mid ?? 0) >= getMaxAllowedForPos("mid")
+                    ? "bg-zinc-800/40 text-zinc-600 cursor-not-allowed opacity-40"
+                    : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
+                }`}
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -230,17 +312,32 @@ export function TeamConfigPanel() {
               <button
                 type="button"
                 onClick={() => handlePosChange("fwd", -1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.fwd ?? 0) <= 0}
+                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="text-sm font-black text-white w-4 text-center">
-                {positions.fwd ?? 1}
-              </span>
+
+              {/* 🎯 SIFIR SİLME VE MAX SINIROLU INPUT */}
+              <input
+                type="number"
+                min={0}
+                max={getMaxAllowedForPos("fwd")}
+                value={positions.fwd === 0 ? "" : positions.fwd}
+                placeholder="0"
+                onChange={(e) => handlePosInputChange("fwd", e.target.value)}
+                className="w-10 text-center bg-zinc-950 border border-zinc-800 rounded py-0.5 text-xs font-black text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+
               <button
                 type="button"
                 onClick={() => handlePosChange("fwd", 1)}
-                className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xs font-bold transition"
+                disabled={(positions.fwd ?? 0) >= getMaxAllowedForPos("fwd")}
+                className={`w-6 h-6 rounded text-xs font-bold transition flex items-center justify-center ${
+                  (positions.fwd ?? 0) >= getMaxAllowedForPos("fwd")
+                    ? "bg-zinc-800/40 text-zinc-600 cursor-not-allowed opacity-40"
+                    : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 cursor-pointer"
+                }`}
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -256,12 +353,9 @@ export function TeamConfigPanel() {
           <input
             type="text"
             value={teamAName}
-            onChange={(e) => {
-              handleNameChange("teamAName", e.target.value);
-              handleNameChange("team1Name", e.target.value);
-            }}
-            placeholder="Codex Red"
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 transition"
+            onChange={(e) => handleNameChange("teamAName", e.target.value)}
+            placeholder="Örn: Kırmızı Takım"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400 transition"
           />
         </div>
 
@@ -270,35 +364,32 @@ export function TeamConfigPanel() {
           <input
             type="text"
             value={teamBName}
-            onChange={(e) => {
-              handleNameChange("teamBName", e.target.value);
-              handleNameChange("team2Name", e.target.value);
-            }}
-            placeholder="Codex Blue"
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 transition"
+            onChange={(e) => handleNameChange("teamBName", e.target.value)}
+            placeholder="Örn: Mavi Takım"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-400 transition"
           />
         </div>
       </div>
 
-      {/* 4. 🚀 EN ALTTAKİ TOTY MAVİSİ DİNAMİK TAKIMLARI OLUŞTUR BUTONU */}
+      {/* 4. 🚀 DEVAM ET BUTONU */}
       <div className="pt-2">
         <button
           type="button"
-          disabled={!isEnough}
-          onClick={handleGenerate}
+          disabled={!selectedSize || currentFormationSum !== selectedSize}
+          onClick={handleNextStep}
           className={`w-full py-4 rounded-xl font-black uppercase tracking-wider text-sm flex items-center justify-center gap-2.5 transition-all duration-300 ${
-            isEnough
+            selectedSize && currentFormationSum === selectedSize
               ? "bg-cyan-400 hover:bg-cyan-300 text-black shadow-[0_0_25px_rgba(6,182,212,0.5)] cursor-pointer scale-100 hover:scale-[1.01] active:scale-[0.99]"
               : "bg-zinc-800/80 text-zinc-500 border border-zinc-700/50 cursor-not-allowed opacity-60"
           }`}
         >
-          <Swords className={`h-5 w-5 ${isEnough ? "text-black" : "text-zinc-500"}`} />
+          <Users className={`h-5 w-5 ${selectedSize && currentFormationSum === selectedSize ? "text-black" : "text-zinc-500"}`} />
           <span>
-            {!teamSize
+            {!selectedSize
               ? "Lütfen Önce Takım Boyutu Seçiniz"
-              : isEnough
-              ? "Takımları Oluştur"
-              : `Takımları Oluştur (${missingCount > 0 ? `${missingCount} Oyuncu Eksik` : "Kadro Sınırı Aşıldı"})`}
+              : currentFormationSum !== selectedSize
+              ? `Mevki Toplamı ${teamSize} Olmalıdır (${currentFormationSum}/${teamSize})`
+              : "Devam Et (Oyuncu Seçimine Geç) ➔"}
           </span>
         </button>
       </div>

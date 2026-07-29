@@ -31,7 +31,7 @@ export function StepNav() {
                 onClick={() => !isDraftLocked && setCurrentStep(step.id)}
                 className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all sm:px-4 ${
                   isActive
-                    ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
+                    ? "bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/40 shadow-sm shadow-cyan-500/10"
                     : isPast
                       ? "text-zinc-300 hover:bg-zinc-800"
                       : isDraftLocked
@@ -46,7 +46,7 @@ export function StepNav() {
               {index < STEPS.length - 1 && (
                 <div
                   className={`hidden h-px w-8 sm:block ${
-                    isPast ? "bg-emerald-500/50" : "bg-zinc-700"
+                    isPast ? "bg-cyan-500/50" : "bg-zinc-700"
                   }`}
                 />
               )}

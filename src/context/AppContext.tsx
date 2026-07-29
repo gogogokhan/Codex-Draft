@@ -11,33 +11,23 @@ import {
 } from "react";
 import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
-import { MOCK_PLAYERS } from "@/lib/mockData";
-import {
-  DEFAULT_TEAM_CONFIG,
-  DraftResult,
-  Player,
-  TeamConfig,
-  UserRole,
-  WizardStep,
-} from "@/types";
+import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig } from "@/types";
+import { supabase } from "@/lib/supabaseClient";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-const STORAGE_KEY = "codex-draft-v1";
+export type StepType = "pool" | "settings" | "attendance" | "squad" | string;
+export type DraftMode = "overall" | "positional";
 
-interface PersistedState {
-  role: UserRole;
-  players: Player[];
-  attendance: string[];
-  teamConfig: TeamConfig;
+export interface AuthResponse {
+  success: boolean;
+  error?: string;
 }
 
 interface AppContextValue {
-  role: UserRole;
-  isAdmin: boolean;
-  setRole: (role: UserRole) => void;
   players: Player[];
-  addPlayer: (player: Player) => void;
-  updatePlayer: (player: Player) => void;
-  deletePlayer: (id: string) => void;
+  addPlayer: (player: Omit<Player, "id">) => Promise<void>;
+  updatePlayer: (player: Player) => Promise<void>;
+  deletePlayer: (id: string) => Promise<void>;
   attendance: string[];
   toggleAttendance: (id: string) => void;
   selectAllAttendance: () => void;
@@ -46,88 +36,223 @@ interface AppContextValue {
   setTeamConfig: (config: Partial<TeamConfig>) => void;
   draftResult: DraftResult | null;
   generateDraft: () => void;
+  generateTeams: () => void;
   swapDraftPlayers: (playerIdA: string, playerIdB: string) => void;
   clearDraft: () => void;
-  currentStep: WizardStep;
-  setCurrentStep: (step: WizardStep) => void;
+  currentStep: StepType;
+  setCurrentStep: (step: StepType) => void;
+  setActiveTab: (step: StepType) => void;
+  draftMode: DraftMode;
+  setDraftMode: (mode: DraftMode) => void;
+  isAuthenticated: boolean;
+  user: SupabaseUser | null;
+  login: (email: string, password?: string) => Promise<AuthResponse>;
+  register: (email: string, password?: string, name?: string) => Promise<AuthResponse>;
+  logout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-function loadState(): PersistedState {
-  if (typeof window === "undefined") {
-    return {
-      role: "ADMIN",
-      players: MOCK_PLAYERS,
-      attendance: [],
-      teamConfig: DEFAULT_TEAM_CONFIG,
-    };
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        role: "ADMIN",
-        players: MOCK_PLAYERS,
-        attendance: [],
-        teamConfig: DEFAULT_TEAM_CONFIG,
-      };
-    }
-    const parsed = JSON.parse(raw) as PersistedState;
-    return {
-      role: parsed.role ?? "ADMIN",
-      players: parsed.players?.length ? parsed.players : MOCK_PLAYERS,
-      attendance: parsed.attendance ?? [],
-      teamConfig: parsed.teamConfig ?? DEFAULT_TEAM_CONFIG,
-    };
-  } catch {
-    return {
-      role: "ADMIN",
-      players: MOCK_PLAYERS,
-      attendance: [],
-      teamConfig: DEFAULT_TEAM_CONFIG,
-    };
-  }
-}
+  return arr;
+};
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
-  const [role, setRoleState] = useState<UserRole>("ADMIN");
-  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+
+  const [players, setPlayers] = useState<Player[]>([]);
   const [attendance, setAttendance] = useState<string[]>([]);
   const [teamConfig, setTeamConfigState] = useState<TeamConfig>(DEFAULT_TEAM_CONFIG);
+
   const [draftResult, setDraftResult] = useState<DraftResult | null>(null);
-  const [currentStep, setCurrentStep] = useState<WizardStep>("players");
+  const [currentStep, setCurrentStepState] = useState<StepType>("pool");
+  const [draftMode, setDraftMode] = useState<DraftMode>("overall");
 
+  // Oyuncuları Supabase'den çek
+  const fetchPlayers = useCallback(async () => {
+    const { data, error } = await supabase.from("players").select("*");
+    if (!error && data) {
+      setPlayers(
+        data.map((p) => ({
+          id: p.id,
+          name: p.name,
+          overall: p.overall,
+          positions: p.positions,
+        }))
+      );
+    }
+  }, []);
+
+  // Oturum durumunu ve değişiklikleri dinle
   useEffect(() => {
-    const state = loadState();
-    setRoleState(state.role);
-    setPlayers(state.players);
-    setAttendance(state.attendance);
-    setTeamConfigState(state.teamConfig);
-    setHydrated(true);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchPlayers();
+      }
+      setHydrated(true);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchPlayers();
+      } else {
+        setPlayers([]);
+        setAttendance([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchPlayers]);
+
+  // SUPABASE KAYIT
+  const register = useCallback(
+    async (email: string, password?: string, name?: string): Promise<AuthResponse> => {
+      if (!password) return { success: false, error: "Şifre zorunludur." };
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { full_name: name },
+        },
+      });
+
+      if (error) {
+        let message = error.message;
+        if (message.includes("User already registered")) {
+          message = "Bu e-posta adresiyle zaten bir hesap mevcut.";
+        } else if (message.includes("Password should be at least")) {
+          message = "Şifre en az 6 karakter olmalıdır.";
+        }
+        return { success: false, error: message };
+      }
+
+      const activeUser = data.session?.user || data.user;
+      if (activeUser) {
+        setUser(activeUser);
+        await fetchPlayers();
+      }
+
+      return { success: true };
+    },
+    [fetchPlayers]
+  );
+
+  // SUPABASE GİRİŞ
+const login = useCallback(
+  async (email: string, password?: string): Promise<AuthResponse> => {
+    if (!password) return { success: false, error: "Lütfen şifrenizi giriniz." };
+
+    const cleanEmail = email.trim();
+
+    // 1. Önce e-postanın kayıtlı olup olmadığını RPC ile kontrol et
+    const { data: userExists } = await supabase.rpc("check_email_exists", {
+      email_input: cleanEmail,
+    });
+
+    if (!userExists) {
+      return {
+        success: false,
+        error: "Böyle bir hesap bulunamadı. Lütfen kayıt olun.",
+      };
+    }
+
+    // 2. E-posta varsa şifre ile giriş yapmayı dene
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) {
+      let message = "Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.";
+      
+      if (error.message.includes("Email not confirmed")) {
+        message = "E-posta adresiniz henüz onaylanmamış.";
+      }
+
+      return { success: false, error: message };
+    }
+
+    if (data.session?.user || data.user) {
+      setUser(data.session?.user || data.user);
+      await fetchPlayers();
+    }
+
+    return { success: true };
+  },
+  [fetchPlayers]
+);
+
+  // SUPABASE ÇIKIŞ
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setPlayers([]);
+    setAttendance([]);
+    setDraftResult(null);
   }, []);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    const payload: PersistedState = { role, players, attendance, teamConfig };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [hydrated, role, players, attendance, teamConfig]);
+  // OYUNCU EKLEME (DB Insert)
+  const addPlayer = useCallback(
+    async (player: Omit<Player, "id">) => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("players")
+        .insert({
+          user_id: user.id,
+          name: player.name,
+          overall: player.overall,
+          positions: player.positions,
+        })
+        .select()
+        .single();
 
-  const setRole = useCallback((next: UserRole) => setRoleState(next), []);
+      if (!error && data) {
+        setPlayers((prev) => [
+          ...prev,
+          { id: data.id, name: data.name, overall: data.overall, positions: data.positions },
+        ]);
+      }
+    },
+    [user]
+  );
 
-  const addPlayer = useCallback((player: Player) => {
-    setPlayers((prev) => [...prev, player]);
+  // OYUNCU GÜNCELLEME (DB Update)
+  const updatePlayer = useCallback(async (player: Player) => {
+    const { error } = await supabase
+      .from("players")
+      .update({
+        name: player.name,
+        overall: player.overall,
+        positions: player.positions,
+      })
+      .eq("id", player.id);
+
+    if (!error) {
+      setPlayers((prev) => prev.map((p) => (p.id === player.id ? player : p)));
+    }
   }, []);
 
-  const updatePlayer = useCallback((player: Player) => {
-    setPlayers((prev) => prev.map((p) => (p.id === player.id ? player : p)));
-  }, []);
+  // OYUNCU SİLME (DB Delete)
+  const deletePlayer = useCallback(async (id: string) => {
+    const { error } = await supabase.from("players").delete().eq("id", id);
 
-  const deletePlayer = useCallback((id: string) => {
-    setPlayers((prev) => prev.filter((p) => p.id !== id));
-    setAttendance((prev) => prev.filter((pid) => pid !== id));
+    if (!error) {
+      setPlayers((prev) => prev.filter((p) => p.id !== id));
+      setAttendance((prev) => prev.filter((pid) => pid !== id));
+    }
   }, []);
 
   const toggleAttendance = useCallback((id: string) => {
@@ -157,17 +282,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setCurrentStep = useCallback((step: StepType) => {
+    setCurrentStepState(step);
+  }, []);
+
   const generateDraft = useCallback(() => {
     const attending = players.filter((p) => attendance.includes(p.id));
-    const result = generateBalancedTeams(attending, teamConfig);
-    setDraftResult(result);
-    setCurrentStep("draft");
+    if (attending.length === 0) return;
+
+    const randomized = shuffleArray(attending);
+    const result = generateBalancedTeams(randomized, teamConfig);
+
+    setDraftResult({ ...result });
+    setCurrentStepState("squad");
   }, [players, attendance, teamConfig]);
 
   const swapDraftPlayers = useCallback(
     (playerIdA: string, playerIdB: string) => {
       setDraftResult((prev) =>
-        prev ? swapPlayers(prev, playerIdA, playerIdB) : null
+        prev ? { ...swapPlayers(prev, playerIdA, playerIdB) } : null
       );
     },
     []
@@ -177,9 +310,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
-      role,
-      isAdmin: role === "ADMIN",
-      setRole,
+      players,
+      addPlayer,
+      updatePlayer,
+      deletePlayer,
+      attendance,
+      toggleAttendance,
+      selectAllAttendance,
+      clearAttendance,
+      teamConfig,
+      setTeamConfig,
+      draftResult,
+      generateDraft,
+      generateTeams: generateDraft,
+      swapDraftPlayers,
+      clearDraft,
+      currentStep,
+      setCurrentStep,
+      setActiveTab: setCurrentStep,
+      draftMode,
+      setDraftMode,
+      isAuthenticated: !!user,
+      user,
+      login,
+      register,
+      logout,
+    }),
+    [
       players,
       addPlayer,
       updatePlayer,
@@ -196,31 +353,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearDraft,
       currentStep,
       setCurrentStep,
-    }),
-    [
-      role,
-      players,
-      addPlayer,
-      updatePlayer,
-      deletePlayer,
-      attendance,
-      toggleAttendance,
-      selectAllAttendance,
-      clearAttendance,
-      teamConfig,
-      setTeamConfig,
-      draftResult,
-      generateDraft,
-      swapDraftPlayers,
-      clearDraft,
-      currentStep,
+      draftMode,
+      setDraftMode,
+      user,
+      login,
+      register,
+      logout,
     ]
   );
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
-        Yükleniyor...
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400 font-bold">
+        Codex Draft Yükleniyor...
       </div>
     );
   }

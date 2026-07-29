@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Users } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { PlayerCard } from "@/components/players/PlayerCard";
 import { PlayerModal } from "@/components/players/PlayerModal";
@@ -32,29 +32,28 @@ export function PlayerPool() {
     <section>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-white">
-            <Users className="h-5 w-5 text-emerald-400" />
+          <h2 className="flex items-center gap-2 text-xl font-black text-white tracking-wide">
+            <Users className="h-5 w-5 text-cyan-400" />
             Oyuncu Havuzu
           </h2>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-xs text-zinc-400">
             {players.length} oyuncu kayıtlı — EA FC tarzı kartlar
           </p>
         </div>
-        <div className="flex gap-2">
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400"
-            >
-              <Plus className="h-4 w-4" />
-              Oyuncu Ekle
-            </button>
-          )}
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setCurrentStep("match")}
-            className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800"
+            onClick={openCreate}
+            className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-bold text-black transition-all hover:bg-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)] active:scale-95 cursor-pointer"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Oyuncu Ekle</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setCurrentStep("settings")}
+            className="rounded-xl border border-zinc-800 bg-zinc-900/80 px-4 py-2.5 text-xs font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:bg-zinc-800 hover:text-white cursor-pointer"
           >
             Maç Ayarları →
           </button>
@@ -68,7 +67,7 @@ export function PlayerPool() {
             player={player}
             isAdmin={isAdmin}
             onEdit={openEdit}
-            onDelete={(p) => deletePlayer(p.id)} // 👈 Oyuncunun ID'sini güvenle Context'e gönderiyoruz
+            onDelete={(p) => deletePlayer(p.id)}
           />
         ))}
       </div>

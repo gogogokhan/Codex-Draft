@@ -52,35 +52,95 @@ export function PlayerModal({
   const [ratingInput, setRatingInput] = useState<number | string>(50);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 🛡️ KOD -> ETİKET EŞLEŞTİRME YARDIMCISI
+  const getLabelByCode = (codeStr: string): string => {
+    const found = POSITIONS.find((p) => p.code === codeStr);
+    if (found) return found.label;
+    if (codeStr === 'GK' || codeStr === 'KL') return 'Kaleci';
+    if (codeStr === 'DEF') return 'Defans';
+    if (codeStr === 'MID') return 'Orta Saha';
+    if (codeStr === 'FWD' || codeStr === 'ST') return 'Forvet';
+    return codeStr || 'Kaleci';
+  };
+
   useEffect(() => {
     if (activePlayer) {
       setName(activePlayer.name || activePlayer.fullName || '');
-      
-      if (activePlayer.positions && activePlayer.positions.length > 0) {
-        setPositions(activePlayer.positions);
+
+      let rawPositions = activePlayer.positions;
+
+      // JSON String olarak geldiyse parse et
+      if (typeof rawPositions === 'string') {
+        try {
+          rawPositions = JSON.parse(rawPositions);
+        } catch {}
+      }
+
+      if (Array.isArray(rawPositions) && rawPositions.length > 0) {
+        // 🎯 MEVKİ LİSTESİNİ GÜVENLE FORMATLA VE REYTİNG/LABEL UYUŞMAZLIĞINI DÜZELT
+        const formatted: PositionItem[] = rawPositions.map((p: any, idx: number) => {
+          let item = p;
+          if (typeof item === 'string' && item.trim().startsWith('{')) {
+            try { item = JSON.parse(item); } catch {}
+          }
+
+          const codeVal = typeof item === 'object' 
+            ? (item.code || item.CODE || item.primary || 'GK') 
+            : String(item || 'GK');
+
+          const upperCode = String(codeVal).toUpperCase();
+          const cleanCode = (upperCode.includes('GK') || upperCode === 'KL')
+            ? 'GK'
+            : upperCode.includes('DEF')
+            ? 'DEF'
+            : upperCode.includes('MID')
+            ? 'MID'
+            : 'FWD';
+
+          const labelVal = typeof item === 'object'
+            ? (item.label || item.LABEL || getLabelByCode(cleanCode))
+            : getLabelByCode(cleanCode);
+
+          const ratingVal = typeof item === 'object'
+            ? (item.rating ?? item.RATING ?? activePlayer.overall ?? activePlayer.rating ?? 50)
+            : (activePlayer.overall ?? activePlayer.rating ?? 50);
+
+          const isMainVal = typeof item === 'object'
+            ? Boolean(item.isMain ?? item.ISMAIN ?? idx === 0)
+            : idx === 0;
+
+          return {
+            code: cleanCode as any,
+            label: labelVal,
+            rating: Number(ratingVal) || 50,
+            isMain: isMainVal,
+          };
+        });
+
+        setPositions(formatted);
       } else {
-        // GÜVENLİ MEVKİ DÖNÜŞTÜRME (Hatanın engellendiği yer)
-        const rawPos = activePlayer.mainPosition || activePlayer.position || 'ST';
+        // GÜVENLİ MEVKİ DÖNÜŞTÜRME
+        const rawPos = activePlayer.mainPosition || activePlayer.position || 'GK';
         const posStr =
           typeof rawPos === 'object' && rawPos !== null
-            ? String(rawPos.code || rawPos.label || rawPos.name || 'ST')
-            : String(rawPos || 'ST');
+            ? String(rawPos.code || rawPos.label || rawPos.name || 'GK')
+            : String(rawPos || 'GK');
 
-        const ovr = Number(activePlayer.overall || activePlayer.rating || 80);
+        const ovr = Number(activePlayer.overall || activePlayer.rating || 50);
         const posUpper = posStr.toUpperCase();
 
         const cleanCode = (posUpper.includes('GK') || posUpper === 'KL')
           ? 'GK'
-          : (posUpper.includes('DEF') || posUpper.includes('CB') || posUpper.includes('LB') || posUpper.includes('RB'))
+          : posUpper.includes('DEF')
           ? 'DEF'
-          : (posUpper.includes('MID') || posUpper.includes('CM') || posUpper.includes('CDM') || posUpper.includes('CAM'))
+          : posUpper.includes('MID')
           ? 'MID'
           : 'FWD';
 
         setPositions([
           {
             code: cleanCode as any,
-            label: cleanCode,
+            label: getLabelByCode(cleanCode),
             rating: ovr,
             isMain: true,
           },
@@ -285,12 +345,14 @@ export function PlayerModal({
                           }`}
                         />
                       </button>
-                      <span className="text-xs font-bold text-zinc-200">{item.label}</span>
+                      <span className="text-xs font-bold text-zinc-200">
+                        {item.label || getLabelByCode(item.code)}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                        {item.rating}
+                        {item.rating || 50}
                       </span>
                       <button
                         type="button"

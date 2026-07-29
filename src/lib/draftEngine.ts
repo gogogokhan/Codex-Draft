@@ -18,6 +18,53 @@ interface TeamState {
   slotCounts: FormationSlots;
 }
 
+// --- GÜVENLİ YARDIMCI FONKSİYONLAR ---
+
+function getPrimaryPosition(player: any): string {
+  if (!player) return "";
+  if (typeof player.position === "string") return player.position;
+  if (Array.isArray(player.position)) return player.position[0] || "";
+  if (player.position && typeof player.position === "object") {
+    return player.position.primary || player.position.main || "";
+  }
+  return player.mainPosition || player.pos || player.role || "";
+}
+
+function getSecondaryPosition(player: any): string | undefined {
+  if (!player || typeof player.position !== "object" || Array.isArray(player.position)) {
+    return undefined;
+  }
+  return player.position?.secondary;
+}
+
+function getRatingForPos(player: any, pos: string): number {
+  if (!player || !player.ratings || typeof player.ratings !== "object") {
+    return 0;
+  }
+  return player.ratings[pos] ?? 0;
+}
+
+function getPlayerStrength(player: any): number {
+  if (!player) return 50;
+
+  if (typeof player.overall === "number") return player.overall;
+  if (typeof player.rating === "number") return player.rating;
+  if (typeof player.ovr === "number") return player.ovr;
+
+  if (player.ratings && typeof player.ratings === "object") {
+    const ratings = Object.values(player.ratings).filter(
+      (v): v is number => typeof v === "number" && v !== undefined && !isNaN(v)
+    );
+    if (ratings.length > 0) {
+      return Math.max(...ratings);
+    }
+  }
+
+  return 50;
+}
+
+// --- TASLAK MOTORU MANTIĞI ---
+
 function cloneSlots(slots: FormationSlots): FormationSlots {
   return { ...slots };
 }
@@ -27,7 +74,8 @@ function emptySlots(): FormationSlots {
 }
 
 function canFillSlot(team: TeamState, position: Position, maxSlots: FormationSlots): boolean {
-  return team.slotCounts[position] < maxSlots[position];
+  if (!position || !team?.slotCounts || !maxSlots) return false;
+  return (team.slotCounts[position] ?? 0) < (maxSlots[position] ?? 0);
 }
 
 function assignPlayer(
@@ -35,13 +83,22 @@ function assignPlayer(
   player: Player,
   position: Position
 ): AssignedPlayer {
+  let effectiveRating = 50;
+  try {
+    effectiveRating = getRatingForPosition(player, position) || getPlayerStrength(player);
+  } catch {
+    effectiveRating = getPlayerStrength(player);
+  }
+
   const assigned: AssignedPlayer = {
     ...player,
     assignedPosition: position,
-    effectiveRating: getRatingForPosition(player, position) || 50,
+    effectiveRating,
   };
   team.players.push(assigned);
-  team.slotCounts[position]++;
+  if (team.slotCounts[position] !== undefined) {
+    team.slotCounts[position]++;
+  }
   return assigned;
 }
 
@@ -51,8 +108,14 @@ function resolvePositionForPlayer(
   maxSlots: FormationSlots,
   preferGk: boolean
 ): Position {
+  const primaryPos = getPrimaryPosition(player);
+  const secondaryPos = getSecondaryPosition(player);
+  const gkRating = getRatingForPos(player, "GK");
+
   const isGkCandidate =
-    player.position.primary === "GK" || (player.ratings.GK ?? 0) >= 70;
+    primaryPos.toUpperCase() === "GK" ||
+    primaryPos.toUpperCase().includes("KALECİ") ||
+    gkRating >= 70;
 
   if (
     preferGk &&
@@ -65,18 +128,28 @@ function resolvePositionForPlayer(
 
   const candidates: Position[] = [];
 
-  if (player.position.primary !== "GK") {
-    candidates.push(player.position.primary);
+  if (primaryPos && primaryPos.toUpperCase() !== "GK") {
+    candidates.push(primaryPos as Position);
   }
-  if (player.position.secondary && player.position.secondary !== "GK") {
-    candidates.push(player.position.secondary);
+  if (secondaryPos && secondaryPos.toUpperCase() !== "GK") {
+    candidates.push(secondaryPos as Position);
   }
-  candidates.push(getBestFieldPosition(player));
 
-  const uniqueCandidates = [...new Set(candidates)];
+  let bestPos: Position = "MID";
+  try {
+    bestPos = getBestFieldPosition(player) as Position;
+  } catch {
+    bestPos = "MID";
+  }
+  candidates.push(bestPos);
+
+  const validPositions: Position[] = ["DEF", "MID", "FWD"];
+  const uniqueCandidates = [...new Set(candidates)].filter((p) =>
+    validPositions.includes(p)
+  );
 
   for (const pos of uniqueCandidates) {
-    if (pos !== "GK" && canFillSlot(team, pos, maxSlots)) {
+    if (canFillSlot(team, pos, maxSlots)) {
       return pos;
     }
   }
@@ -92,18 +165,20 @@ function resolvePositionForPlayer(
     return "GK";
   }
 
-  return getBestFieldPosition(player);
-}
-
-function getPlayerStrength(player: Player): number {
-  const ratings = Object.values(player.ratings).filter(
-    (v): v is number => v !== undefined
-  );
-  return ratings.length > 0 ? Math.max(...ratings) : 50;
+  return bestPos || "MID";
 }
 
 function sortPlayersByStrength(players: Player[]): Player[] {
-  return [...players].sort((a, b) => getPlayerStrength(b) - getPlayerStrength(a));
+  return [...players].sort((a, b) => {
+    const powerA = getPlayerStrength(a);
+    const powerB = getPlayerStrength(b);
+
+    if (Math.abs(powerA - powerB) <= 2) {
+      return Math.random() - 0.5;
+    }
+
+    return powerB - powerA;
+  });
 }
 
 function createEmptyTeam(maxSlots: FormationSlots): TeamState {
@@ -133,6 +208,7 @@ function tryAssignToTeam(
   return true;
 }
 
+// 🎯 POZİSYON DENGELİ DRAFT MOTORU
 function balanceTeams(
   players: Player[],
   perTeamSlots: FormationSlots
@@ -141,9 +217,16 @@ function balanceTeams(
   const teamB = createEmptyTeam(perTeamSlots);
   const sorted = sortPlayersByStrength(players);
 
-  const gkCandidates = sorted.filter(
-    (p) => p.position.primary === "GK" || (p.ratings.GK ?? 0) >= 75
-  );
+  // 1. Kalecileri Ayır ve Dağıt
+  const gkCandidates = sorted.filter((p) => {
+    const primaryPos = getPrimaryPosition(p);
+    const gkRating = getRatingForPos(p, "GK");
+    return (
+      primaryPos.toUpperCase() === "GK" ||
+      primaryPos.toUpperCase().includes("KALECİ") ||
+      gkRating >= 75
+    );
+  });
   const others = sorted.filter((p) => !gkCandidates.includes(p));
 
   if (gkCandidates.length >= 2) {
@@ -156,27 +239,55 @@ function balanceTeams(
     tryAssignToTeam(target, gkCandidates[0], perTeamSlots, true);
   }
 
-  const pool = others.sort((a, b) => getPlayerStrength(b) - getPlayerStrength(a));
+  // 2. Oyuncuları Ana Pozisyonlarına Göre Grupla (DEF, FWD, MID, DİĞER)
+  const defs: Player[] = [];
+  const mids: Player[] = [];
+  const fwds: Player[] = [];
+  const rest: Player[] = [];
 
-  for (const player of pool) {
-    const powerA = teamTotalPower(teamA);
-    const powerB = teamTotalPower(teamB);
-    const countA = teamA.players.length;
-    const countB = teamB.players.length;
-    const maxPerTeam =
-      perTeamSlots.GK + perTeamSlots.DEF + perTeamSlots.MID + perTeamSlots.FWD;
+  for (const p of others) {
+    const mainPos = (getPrimaryPosition(p) || "").toUpperCase();
+    if (mainPos === "DEF" || mainPos.includes("DEF") || mainPos.includes("STOPER") || mainPos.includes("BEK")) {
+      defs.push(p);
+    } else if (mainPos === "FWD" || mainPos.includes("FOR") || mainPos.includes("FORVET") || mainPos.includes("SNT")) {
+      fwds.push(p);
+    } else if (mainPos === "MID" || mainPos.includes("ORT") || mainPos.includes("OS")) {
+      mids.push(p);
+    } else {
+      rest.push(p);
+    }
+  }
 
-    let targetTeam: TeamState;
-    if (countA >= maxPerTeam) targetTeam = teamB;
-    else if (countB >= maxPerTeam) targetTeam = teamA;
-    else if (countA !== countB) targetTeam = countA < countB ? teamA : teamB;
-    else targetTeam = powerA <= powerB ? teamA : teamB;
+  // Her grubu kendi içinde sırala
+  const sortedDefs = sortPlayersByStrength(defs);
+  const sortedFwds = sortPlayersByStrength(fwds);
+  const sortedMids = sortPlayersByStrength(mids);
+  const sortedRest = sortPlayersByStrength(rest);
 
-    const otherTeam = targetTeam === teamA ? teamB : teamA;
+  // Grupları sırayla (Defanslar, Forvetler, Orta Sahalar) iki takıma adil dağıt
+  const positionalGroups = [sortedDefs, sortedFwds, sortedMids, sortedRest];
 
-    const assigned = tryAssignToTeam(targetTeam, player, perTeamSlots, false);
-    if (!assigned) {
-      tryAssignToTeam(otherTeam, player, perTeamSlots, false);
+  for (const group of positionalGroups) {
+    for (const player of group) {
+      const powerA = teamTotalPower(teamA);
+      const powerB = teamTotalPower(teamB);
+      const countA = teamA.players.length;
+      const countB = teamB.players.length;
+      const maxPerTeam =
+        perTeamSlots.GK + perTeamSlots.DEF + perTeamSlots.MID + perTeamSlots.FWD;
+
+      let targetTeam: TeamState;
+      if (countA >= maxPerTeam) targetTeam = teamB;
+      else if (countB >= maxPerTeam) targetTeam = teamA;
+      else if (countA !== countB) targetTeam = countA < countB ? teamA : teamB;
+      else targetTeam = powerA <= powerB ? teamA : teamB;
+
+      const otherTeam = targetTeam === teamA ? teamB : teamA;
+
+      const assigned = tryAssignToTeam(targetTeam, player, perTeamSlots, false);
+      if (!assigned) {
+        tryAssignToTeam(otherTeam, player, perTeamSlots, false);
+      }
     }
   }
 
@@ -192,13 +303,14 @@ function fillMissingSlots(team: TeamState, perTeamSlots: FormationSlots): void {
         (p) =>
           p.assignedPosition !== pos &&
           p.assignedPosition !== "GK" &&
-          (p.ratings[pos] ?? 0) > 0
+          (p.ratings?.[pos] ?? 0) > 0
       );
 
       if (flexible) {
         team.slotCounts[flexible.assignedPosition]--;
         flexible.assignedPosition = pos;
-        flexible.effectiveRating = getRatingForPosition(flexible, pos) || flexible.effectiveRating;
+        flexible.effectiveRating =
+          getRatingForPosition(flexible, pos) || flexible.effectiveRating;
         team.slotCounts[pos]++;
       } else {
         break;
@@ -253,12 +365,36 @@ export function swapPlayers(
 
   if (idxAInA >= 0 && idxBInB >= 0) {
     const temp = teamA[idxAInA];
-    teamA[idxAInA] = { ...teamB[idxBInB], assignedPosition: temp.assignedPosition, effectiveRating: getRatingForPosition(teamB[idxBInB], temp.assignedPosition) || teamB[idxBInB].effectiveRating };
-    teamB[idxBInB] = { ...temp, assignedPosition: teamB[idxBInB].assignedPosition, effectiveRating: getRatingForPosition(temp, teamB[idxBInB].assignedPosition) || temp.effectiveRating };
+    teamA[idxAInA] = {
+      ...teamB[idxBInB],
+      assignedPosition: temp.assignedPosition,
+      effectiveRating:
+        getRatingForPosition(teamB[idxBInB], temp.assignedPosition) ||
+        teamB[idxBInB].effectiveRating,
+    };
+    teamB[idxBInB] = {
+      ...temp,
+      assignedPosition: teamB[idxBInB].assignedPosition,
+      effectiveRating:
+        getRatingForPosition(temp, teamB[idxBInB].assignedPosition) ||
+        temp.effectiveRating,
+    };
   } else if (idxAInB >= 0 && idxBInA >= 0) {
     const temp = teamB[idxAInB];
-    teamB[idxAInB] = { ...teamA[idxBInA], assignedPosition: temp.assignedPosition, effectiveRating: getRatingForPosition(teamA[idxBInA], temp.assignedPosition) || teamA[idxBInA].effectiveRating };
-    teamA[idxBInA] = { ...temp, assignedPosition: teamA[idxBInA].assignedPosition, effectiveRating: getRatingForPosition(temp, teamA[idxBInA].assignedPosition) || temp.effectiveRating };
+    teamB[idxAInB] = {
+      ...teamA[idxBInA],
+      assignedPosition: temp.assignedPosition,
+      effectiveRating:
+        getRatingForPosition(teamA[idxBInA], temp.assignedPosition) ||
+        teamA[idxBInA].effectiveRating,
+    };
+    teamA[idxBInA] = {
+      ...temp,
+      assignedPosition: teamB[idxAInB].assignedPosition,
+      effectiveRating:
+        getRatingForPosition(temp, teamB[idxAInB].assignedPosition) ||
+        temp.effectiveRating,
+    };
   } else if (idxAInA >= 0 && idxBInA >= 0) {
     const posA = teamA[idxAInA].assignedPosition;
     const posB = teamA[idxBInA].assignedPosition;
@@ -266,12 +402,15 @@ export function swapPlayers(
     teamA[idxAInA] = {
       ...teamA[idxBInA],
       assignedPosition: posA,
-      effectiveRating: getRatingForPosition(teamA[idxBInA], posA) || teamA[idxBInA].effectiveRating,
+      effectiveRating:
+        getRatingForPosition(teamA[idxBInA], posA) ||
+        teamA[idxBInA].effectiveRating,
     };
     teamA[idxBInA] = {
       ...temp,
       assignedPosition: posB,
-      effectiveRating: getRatingForPosition(temp, posB) || temp.effectiveRating,
+      effectiveRating:
+        getRatingForPosition(temp, posB) || temp.effectiveRating,
     };
   } else if (idxAInB >= 0 && idxBInB >= 0) {
     const posA = teamB[idxAInB].assignedPosition;
@@ -280,12 +419,15 @@ export function swapPlayers(
     teamB[idxAInB] = {
       ...teamB[idxBInB],
       assignedPosition: posA,
-      effectiveRating: getRatingForPosition(teamB[idxBInB], posA) || teamB[idxBInB].effectiveRating,
+      effectiveRating:
+        getRatingForPosition(teamB[idxBInB], posA) ||
+        teamB[idxBInB].effectiveRating,
     };
     teamB[idxBInB] = {
       ...temp,
       assignedPosition: posB,
-      effectiveRating: getRatingForPosition(temp, posB) || temp.effectiveRating,
+      effectiveRating:
+        getRatingForPosition(temp, posB) || temp.effectiveRating,
     };
   }
 
