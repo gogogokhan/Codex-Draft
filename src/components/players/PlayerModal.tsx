@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Star, Trash2, Plus, UserPlus, UserCheck, Ban, Loader2 } from 'lucide-react';
+import { formatPlayerName } from '@/lib/playerName';
 
 export interface PositionItem {
   code: 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -303,16 +304,10 @@ export function PlayerModal({
 
       const playerData = {
         ...(activePlayer?.id ? { id: activePlayer.id } : {}),
-        name: name.trim(),
+        name: formatPlayerName(name),
         avatar: activePlayer?.avatar || "🧤",
         overall: Math.max(50, Number(mainPosItem.rating) || 50),
-        position: { primary: mainPosItem.code },
-        mainPosition: mainPosItem.code,
         positions: normalizedPositions,
-        ratings: normalizedPositions.reduce((acc, p) => {
-          acc[p.code as keyof typeof acc] = p.rating;
-          return acc;
-        }, { GK: 0, DEF: 0, MID: 0, FWD: 0 } as Record<string, number>),
       };
 
       if (handleSaveCallback) {
@@ -367,6 +362,7 @@ export function PlayerModal({
             </label>
             <input
               type="text"
+              autoFocus={!activePlayer}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Örn: Ahmet Yılmaz"

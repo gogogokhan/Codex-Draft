@@ -5,6 +5,7 @@ import { ArrowUpDown, Trash2, AlertTriangle, Plus } from 'lucide-react';
 import { PlayerCard } from './PlayerCard';
 
 const SORT_OPTIONS = [
+  { value: 'newest', label: 'En Yeni Eklenen' },
   { value: 'rating-desc', label: 'Reyting (En Yüksek)' },
   { value: 'rating-asc', label: 'Reyting (En Düşük)' },
   { value: 'name-asc', label: 'İsim (A ➔ Z)' },
@@ -155,7 +156,7 @@ export function PlayerPool({
   onEditPlayer,
   onDeletePlayer,
 }: PlayerPoolProps) {
-  const [sortOption, setSortOption] = useState<string>('rating-desc');
+  const [sortOption, setSortOption] = useState<string>('newest');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const getPlayerRating = (player: any, positionCode?: string): number => {
@@ -186,6 +187,10 @@ export function PlayerPool({
       const nameA = (a.name || '').localeCompare(b.name || '', 'tr');
 
       switch (sortOption) {
+        // Oyuncu dizisi kayıt zamanına göre yeni -> eski tutulur.
+        case 'newest':
+          return 0;
+
         // 1. REYTİNG EN YÜKSEK: 99 > 98 > ... > 50
         // Aynı rating'de: GK > DEF > MID > FWD
         case 'rating-desc': {

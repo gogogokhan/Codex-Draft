@@ -55,7 +55,7 @@ export function SquadPitch() {
     const result = { gk: [] as any[], def: [] as any[], mid: [] as any[], fwd: [] as any[] };
 
     const getRawPos = (p: any) => {
-      const raw = p.position || p.mainPosition || p.pos || p.role || '';
+      const raw = p.assignedPosition || p.positions?.find((position: any) => position.isMain)?.code || '';
       return Array.isArray(raw) ? raw.join(' ') : String(raw);
     };
 
@@ -154,9 +154,9 @@ export function SquadPitch() {
 
   // Mevki Rozeti Yardımcısı
   const getPosBadge = (player: any) => {
-    const rawStr = Array.isArray(player.position || player.mainPosition || player.pos || player.role)
-      ? (player.position || player.mainPosition || player.pos || player.role).join(' ')
-      : String(player.position || player.mainPosition || player.pos || player.role || '');
+    const rawStr = String(
+      player.assignedPosition || player.positions?.find((position: any) => position.isMain)?.code || ''
+    );
     
     const upper = rawStr.toUpperCase();
     if (upper.includes('KALECİ') || upper.includes('GK')) return { text: 'KL', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };

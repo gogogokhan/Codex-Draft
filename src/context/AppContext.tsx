@@ -1,5 +1,6 @@
 "use client";
 
+import { usePersistentState } from "@/lib/usePersistentState";
 import {
   createContext,
   useCallback,
@@ -13,6 +14,7 @@ import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
 import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig, type Position } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
+import { normalizePositions } from "@/lib/positions";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export type StepType = "pool" | "settings" | "attendance" | "squad" | string;
@@ -143,6 +145,19 @@ const normalizePositionCode = (value: unknown): Position => {
 const normalizePlayer = (player: any): Player => {
   if (!player) return null as any;
 
+  const legacyPrimary = normalizePositionCode(
+    player?.position?.primary ?? player?.position ?? player?.mainPosition ?? player?.pos ?? player?.role ?? "MID"
+  );
+  const overall = Number(player?.overall ?? player?.rating ?? player?.ovr ?? 50) || 50;
+
+  return {
+    id: String(player.id ?? ""),
+    name: String(player.name ?? ""),
+    avatar: String(player.avatar ?? ""),
+    overall,
+    positions: normalizePositions(player.positions ?? player.ratings, overall, legacyPrimary),
+  };
+
   // 1. PRIMARY POSITION'U BEL
   const primaryPosition = normalizePositionCode(
     player?.position?.primary ?? player?.position?.code ?? player?.position ?? 
@@ -157,36 +172,43 @@ const normalizePlayer = (player: any): Player => {
     FWD: 0,
   };
 
-  // A. Eğer player.positions array'i varsa, oradan ratingleri çıkar
-  if (Array.isArray(player?.positions) && player.positions.length > 0) {
-    player.positions.forEach((item: any) => {
-      if (item && typeof item === "object") {
-        const code = normalizePositionCode(item.code ?? item.primary ?? item.name ?? item.value ?? item.label);
-        const rating = Number(item.rating ?? item.RATING ?? item.value ?? 0);
-        if (rating > 0) {
-          ratings[code] = rating;
-        }
+  const processSource = (source: any) => {
+    if (typeof source === 'object' && source !== null) {
+      // Kaynak bir ratings nesnesi ise (örn: { GK: 80, DEF: 75 })
+      if (!Array.isArray(source)) {
+        Object.entries(source).forEach(([key, value]) => {
+          const code = normalizePositionCode(key);
+          if (code in ratings && typeof value === 'number' && value > 0) {
+            ratings[code] = Math.min(99, Math.max(50, value));
+          }
+        });
       }
-    });
-  }
+      // Kaynak bir positions dizisi ise (örn: [{ code: 'DEF', rating: 85 }])
+      else if (Array.isArray(source)) {
+        source.forEach((item: any) => {
+          if (item && typeof item === 'object') {
+            const code = normalizePositionCode(item.code ?? item.primary);
+            const rating = Number(item.rating ?? 0);
+            if (code in ratings && rating > 0) {
+              ratings[code] = Math.min(99, Math.max(50, rating));
+            }
+          }
+        });
+      }
+    }
+  };
 
-  // B. Sonra player.ratings object'ini override et (bu, DB'den direct gelmiş olabilir)
-  if (typeof player?.ratings === "object" && player?.ratings !== null) {
-    Object.entries(player.ratings).forEach(([key, value]) => {
-      if (key in ratings && typeof value === "number" && value > 0) {
-        ratings[key as keyof typeof ratings] = value;
-      }
-    });
-  }
+  // Önce `ratings` nesnesini işle (daha spesifik veri)
+  processSource(player.ratings);
+  // Sonra `positions` dizisini işle (daha genel veya eski veri olabilir)
+  processSource(player.positions);
 
   // C. Eğer tüm ratings hala 0 ise, overall'dan fill et
   const overallRating = Number(player?.overall ?? player?.rating ?? player?.ovr ?? 0) || 0;
-  const primaryPositionHasRating = ratings[primaryPosition] > 0;
+  const hasAnyRating = Object.values(ratings).some(r => r > 0);
   
-  if (!primaryPositionHasRating && overallRating > 0) {
-    // Overall rating'i primary position'a ata
+  if (!hasAnyRating && overallRating > 0) {
     ratings[primaryPosition] = overallRating;
-    // Eğer diğer ratings da 0 ise, overall'dan fill et (muhafazakar)
     Object.keys(ratings).forEach((key) => {
       if (ratings[key as keyof typeof ratings] === 0 && key !== primaryPosition) {
         ratings[key as keyof typeof ratings] = Math.max(50, overallRating - 5);
@@ -203,6 +225,7 @@ const normalizePlayer = (player: any): Player => {
       primary: primaryPosition,
       secondary: undefined,
     },
+    positions: normalizePositions(player.positions ?? player.ratings, overallRating || 50, primaryPosition),
     overall: overallRating || ratings[primaryPosition] || 50,
   } as Player;
 };
@@ -211,23 +234,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [attendance, setAttendance] = useState<string[]>([]);
-  const [teamConfig, setTeamConfigState] = useState<TeamConfig>(DEFAULT_TEAM_CONFIG);
+  const [players, setPlayers] = usePersistentState<Player[]>('codex-players', []);
+  const [attendance, setAttendance] = usePersistentState<string[]>('codex-attendance', []);
+  const [teamConfig, setTeamConfigState] = usePersistentState<TeamConfig>('codex-teamConfig', DEFAULT_TEAM_CONFIG);
+  const [draftResult, setDraftResult] = usePersistentState<DraftResult | null>('codex-draftResult', null);
+  const [currentStep, setCurrentStepState] = usePersistentState<StepType>('codex-currentStep', "pool");
+  const [draftMode, setDraftMode] = usePersistentState<DraftMode>('codex-draftMode', "overall");
+  const [isAdmin, setIsAdmin] = usePersistentState<boolean>('codex-isAdmin', false);
 
-  const [draftResult, setDraftResult] = useState<DraftResult | null>(null);
-  const [currentStep, setCurrentStepState] = useState<StepType>("pool");
-  const [draftMode, setDraftMode] = useState<DraftMode>("overall");
-  const [isAdmin, setIsAdmin] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
   // Oyuncuları Supabase'den çek
   const fetchPlayers = useCallback(async () => {
-    const { data, error } = await supabase.from("players").select("*");
+    const { data, error } = await supabase
+      .from("players")
+      .select("*")
+      .order("created_at", { ascending: false });
     if (!error && data) {
       setPlayers(data.map((p) => normalizePlayer(p)));
     }
-  }, []);
+  }, [setPlayers]);
 
   // Oturum durumunu ve değişiklikleri dinle
   useEffect(() => {
@@ -255,7 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // 5 saniye sonra yine de hydrate et
     hydrationTimeout = setTimeout(() => {
-      if (mounted && !hydrated) {
+      if (mounted) {
         setHydrated(true);
       }
     }, 5000);
@@ -282,7 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearTimeout(hydrationTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchPlayers]);
+  }, [fetchPlayers, setPlayers, setAttendance]);
 
   // SUPABASE KAYIT
   const register = useCallback(
@@ -325,24 +351,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const cleanEmail = email.trim();
 
-      const { data: userExists } = await supabase.rpc("check_email_exists", {
-        email_input: cleanEmail,
-      });
-
-      if (!userExists) {
-        return {
-          success: false,
-          error: "Böyle bir hesap bulunamadı. Lütfen kayıt olun.",
-        };
-      }
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
       });
 
       if (error) {
-        let message = "Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.";
+        let message = "E-posta adresi veya parola hatalı. Lütfen tekrar deneyin.";
         
         if (error.message.includes("Email not confirmed")) {
           message = "E-posta adresiniz henüz onaylanmamış.";
@@ -368,7 +383,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlayers([]);
     setAttendance([]);
     setDraftResult(null);
-  }, []);
+    setTeamConfigState(DEFAULT_TEAM_CONFIG);
+    setCurrentStepState("pool");
+    setDraftMode("overall");
+    setIsAdmin(false);
+  }, [setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setDraftMode, setIsAdmin]);
 
   // OYUNCU EKLEME (DB Insert)
   const addPlayer = useCallback(
@@ -380,18 +399,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           name: player.name,
           overall: (player as any).overall ?? 80,
-          positions: (player as any).positions ?? [],
+          positions: player.positions.map((position) => JSON.stringify(position)),
         })
         .select()
         .single();
 
       if (!error && data) {
-        setPlayers((prev) => [...prev, normalizePlayer(data)]);
+        // Yeni eklenen oyuncu havuzun en başında görünmelidir.
+        setPlayers((prev) => [normalizePlayer(data), ...prev]);
       } else if (error) {
-        console.error("Oyuncu eklenirken hata:", error.message);
+        throw new Error(error.message);
       }
     },
-    [user]
+    [user, setPlayers]
   );
 
   // OYUNCU GÜNCELLEME (DB Update)
@@ -401,17 +421,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .update({
         name: player.name,
         overall: (player as any).overall ?? 80,
-        positions: (player as any).positions ?? [],
+        positions: player.positions.map((position) => JSON.stringify(position)),
       })
       .eq("id", player.id);
 
     if (!error) {
-      const normalizedPlayer = normalizePlayer(player);
-      setPlayers((prev) => prev.map((p) => (p.id === player.id ? normalizedPlayer : p)));
+      setPlayers(currentPlayers => {
+        const normalizedPlayer = normalizePlayer(player);
+        return currentPlayers.map((p) => (p.id === player.id ? normalizedPlayer : p));
+      });
     } else {
-      console.error("Oyuncu güncellenirken hata:", error.message);
+      throw new Error(error.message);
     }
-  }, []);
+  }, [setPlayers]);
 
   // OYUNCU SİLME (DB Delete)
   const deletePlayer = useCallback(async (id: string) => {
@@ -421,22 +443,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPlayers((prev) => prev.filter((p) => p.id !== id));
       setAttendance((prev) => prev.filter((pid) => pid !== id));
     }
-  }, []);
+  }, [setPlayers, setAttendance]);
 
   const toggleAttendance = useCallback((id: string) => {
     setAttendance((prev) =>
       prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
     );
-  }, []);
+  }, [setAttendance]);
 
   const selectAllAttendance = useCallback(() => {
     setPlayers((current) => {
       setAttendance(current.map((p) => p.id));
       return current;
     });
-  }, []);
+  }, [setPlayers, setAttendance]);
 
-  const clearAttendance = useCallback(() => setAttendance([]), []);
+  const clearAttendance = useCallback(() => setAttendance([]), [setAttendance]);
 
   const setTeamConfig = useCallback((partial: Partial<TeamConfig>) => {
     setTeamConfigState((prev) => {
@@ -448,11 +470,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : prev.formation);
       return { ...prev, ...partial, teamSize, formation };
     });
-  }, []);
+  }, [setTeamConfigState]);
 
   const setCurrentStep = useCallback((step: StepType) => {
     setCurrentStepState(step);
-  }, []);
+  }, [setCurrentStepState]);
 
   const generateDraft = useCallback(() => {
     const attending = players.filter((p) => attendance.includes(p.id));
@@ -463,7 +485,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setDraftResult({ ...result });
     setCurrentStepState("squad");
-  }, [players, attendance, teamConfig]);
+  }, [players, attendance, teamConfig, setDraftResult, setCurrentStepState]);
 
   const swapDraftPlayers = useCallback(
     (playerIdA: string, playerIdB: string) => {
@@ -471,10 +493,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev ? { ...swapPlayers(prev, playerIdA, playerIdB) } : null
       );
     },
-    []
+    [setDraftResult]
   );
 
-  const clearDraft = useCallback(() => setDraftResult(null), []);
+  const clearDraft = useCallback(() => {
+    setDraftResult(null);
+  }, [setDraftResult]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -528,6 +552,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       draftMode,
       setDraftMode,
       isAdmin,
+      setIsAdmin,
       user,
       login,
       register,

@@ -44,6 +44,14 @@ export function TeamConfigPanel() {
       };
     }
 
+    if (typeof formation === "string") {
+      const [gk = 1, def = 0, mid = 0, fwd = 0] = formation
+        .split("-")
+        .map((value) => Math.max(0, Number.parseInt(value, 10) || 0));
+
+      return { gk: 1, def, mid, fwd };
+    }
+
     return {
       gk: 1,
       def: 0,
@@ -63,12 +71,10 @@ export function TeamConfigPanel() {
   const handleTeamSizeChange = (newSize: number) => {
     setSelectedSize(newSize);
 
-    const resetPositions = { gk: 1, def: 0, mid: 0, fwd: 0 };
-
     if (setTeamConfig) {
       setTeamConfig({
         teamSize: newSize,
-        formation: "1-1-0-0",
+        formation: "1-0-0-0",
       });
     }
   };

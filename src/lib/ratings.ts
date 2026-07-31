@@ -1,4 +1,5 @@
 import { AssignedPlayer, Player, Position } from "@/types";
+import { getMainPosition, getOverallRating as getCanonicalOverallRating, getPositionRating } from "@/lib/positions";
 
 const FIELD_POSITIONS: Position[] = ["DEF", "MID", "FWD"];
 
@@ -6,7 +7,7 @@ export function getRatingForPosition(
   player: Player,
   position: Position
 ): number {
-  return player.ratings[position] ?? 0;
+  return getPositionRating(player, position);
 }
 
 export function getBestFieldPosition(player: Player): Position {
@@ -14,24 +15,18 @@ export function getBestFieldPosition(player: Player): Position {
   let bestRating = 0;
 
   for (const pos of FIELD_POSITIONS) {
-    const rating = player.ratings[pos] ?? 0;
+    const rating = getPositionRating(player, pos);
     if (rating > bestRating) {
       bestRating = rating;
       best = pos;
     }
   }
 
-  if (player.position.secondary && FIELD_POSITIONS.includes(player.position.secondary)) {
-    const secondaryRating = player.ratings[player.position.secondary] ?? 0;
-    if (secondaryRating >= bestRating) {
-      return player.position.secondary;
-    }
-  }
-
-  if (player.position.primary !== "GK" && FIELD_POSITIONS.includes(player.position.primary)) {
-    const primaryRating = player.ratings[player.position.primary] ?? 0;
+  const primaryPosition = getMainPosition(player);
+  if (primaryPosition !== "GK" && FIELD_POSITIONS.includes(primaryPosition)) {
+    const primaryRating = getPositionRating(player, primaryPosition);
     if (primaryRating >= bestRating) {
-      return player.position.primary;
+      return primaryPosition;
     }
   }
 
@@ -39,13 +34,7 @@ export function getBestFieldPosition(player: Player): Position {
 }
 
 export function getOverallRating(player: Player): number {
-  const primary = player.ratings[player.position.primary];
-  if (primary) return primary;
-
-  const values = Object.values(player.ratings).filter(
-    (v): v is number => v !== undefined
-  );
-  return values.length > 0 ? Math.max(...values) : 50;
+  return getCanonicalOverallRating(player);
 }
 
 export function getCardTier(overall: number): "gold" | "silver" | "bronze" {

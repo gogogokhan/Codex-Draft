@@ -1,6 +1,6 @@
 import { Player } from "@/types";
 
-export const MOCK_PLAYERS: Player[] = [
+export const MOCK_PLAYERS = [
   {
     id: "p1",
     name: "Ahmet Yılmaz",
@@ -113,4 +113,4 @@ export const MOCK_PLAYERS: Player[] = [
     ratings: { GK: 43, DEF: 72, MID: 84, FWD: 75 },
     position: { primary: "MID", secondary: "DEF" },
   },
-];
+] as unknown as Player[];

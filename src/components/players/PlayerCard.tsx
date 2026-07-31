@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { User, Trash2, AlertTriangle, Check } from "lucide-react";
+import { formatPlayerName } from "@/lib/playerName";
 
 interface PositionItem {
   code: string;
@@ -109,8 +110,8 @@ export function PlayerCard({
   };
 
   // 🇹🇷 TÜRKÇE KARAKTER DUYARLI BÜYÜK HARF DÖNÜŞÜMÜ
-  const rawName = String(player.name || player.fullName || "OYUNCU");
-  const name = rawName.toLocaleUpperCase("tr-TR");
+  const rawName = String(player.name || player.fullName || "Oyuncu");
+  const name = formatPlayerName(rawName);
 
   // 1. MEVKİ VERİLERİNİ TEMİZLE VE ÇEK
   let rawPosList: PositionItem[] = [];

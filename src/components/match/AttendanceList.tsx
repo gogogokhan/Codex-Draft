@@ -2,8 +2,6 @@
 
 import React, { useState } from "react";
 import {
-  CheckSquare,
-  Square,
   Users,
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +19,6 @@ export function AttendanceList() {
     toggleAttendance,
     clearAttendance,
     teamConfig,
-    isAdmin,
     setActiveTab,
     draftMode,
     setDraftMode,
@@ -31,6 +28,9 @@ export function AttendanceList() {
 
   const teamSize = teamConfig?.teamSize || 0;
   const required = teamSize ? teamSize * 2 : 0;
+  const topPlayerIds = players.slice(0, required).map((player: any) => player.id);
+  const isTopPlayerSelectionActive =
+    topPlayerIds.length > 0 && topPlayerIds.every((playerId) => attendance.includes(playerId));
   const isEnough = teamSize ? attendance.length === required : false;
   const missingCount = teamSize ? required - attendance.length : 0;
 
@@ -62,6 +62,12 @@ export function AttendanceList() {
       return;
     }
     setWarningMessage(null);
+
+    if (isTopPlayerSelectionActive) {
+      clearAttendance();
+      return;
+    }
+
     clearAttendance();
 
     const topPlayers = players.slice(0, required);
@@ -89,30 +95,20 @@ export function AttendanceList() {
           </p>
         </div>
 
-        {isAdmin && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
             <button
               type="button"
               onClick={handleSelectTopN}
-              className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/40 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 transition"
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                isTopPlayerSelectionActive
+                  ? "border-cyan-300 bg-cyan-400 text-black shadow-[0_0_12px_rgba(34,211,238,0.45)]"
+                  : "border-cyan-500/40 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60"
+              }`}
             >
-              <CheckSquare className="h-3.5 w-3.5 text-cyan-400" />
               İlk {required || "?"} oyuncuyu Seç {teamSize ? `(${teamSize}v${teamSize})` : ""}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setWarningMessage(null);
-                clearAttendance();
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-red-400 transition"
-            >
-              <Square className="h-3.5 w-3.5" />
-              Temizle
-            </button>
-          </div>
-        )}
+        </div>
       </div>
 
       {warningMessage && (
@@ -219,8 +215,7 @@ export function AttendanceList() {
           <PlayerCard
             key={player.id}
             player={player}
-            isAdmin={isAdmin}
-            selectable={isAdmin}
+            selectable
             selected={attendance.includes(player.id)}
             onClick={() => handlePlayerClick(player.id)}
           />

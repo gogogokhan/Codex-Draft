@@ -2,22 +2,17 @@ export type Position = "GK" | "DEF" | "MID" | "FWD";
 export type UserRole = "ADMIN" | "USER";
 export type WizardStep = "players" | "match" | "draft";
 
-export interface PlayerRatings {
-  GK?: number;
-  DEF?: number;
-  MID?: number;
-  FWD?: number;
+export interface PlayerPosition {
+  code: Position;
+  rating: number;
+  isMain: boolean;
 }
 
 export interface Player {
   id: string;
   name: string;
   avatar: string;
-  ratings: PlayerRatings;
-  position: {
-    primary: Position;
-    secondary?: Position;
-  };
+  positions: PlayerPosition[];
   overall?: number;
 }
 
@@ -48,13 +43,7 @@ export interface FormationSlots {
 }
 
 export const POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
-
-export const POSITION_LABELS: Record<Position, string> = {
-  GK: "Kaleci",
-  DEF: "Defans",
-  MID: "Orta Saha",
-  FWD: "Forvet",
-};
+export { POSITION_LABELS } from "@/lib/positions";
 
 export const DEFAULT_TEAM_CONFIG: TeamConfig = {
   teamSize: 7,

@@ -12,6 +12,7 @@ import {
   Position,
   TeamConfig,
 } from "@/types";
+import { getMainPosition, getOverallRating, getPositionRating } from "@/lib/positions";
 
 interface TeamState {
   players: AssignedPlayer[];
@@ -21,46 +22,21 @@ interface TeamState {
 // --- GÜVENLİ YARDIMCI FONKSİYONLAR ---
 
 function getPrimaryPosition(player: any): string {
-  if (!player) return "";
-  if (typeof player.position === "string") return player.position;
-  if (Array.isArray(player.position)) return player.position[0] || "";
-  if (player.position && typeof player.position === "object") {
-    return player.position.primary || player.position.main || "";
-  }
-  return player.mainPosition || player.pos || player.role || "";
+  return player ? getMainPosition(player as Player) : "";
 }
 
 function getSecondaryPosition(player: any): string | undefined {
-  if (!player || typeof player.position !== "object" || Array.isArray(player.position)) {
-    return undefined;
-  }
-  return player.position?.secondary;
+  return undefined;
 }
 
 function getRatingForPos(player: any, pos: string): number {
-  if (!player || !player.ratings || typeof player.ratings !== "object") {
-    return 0;
-  }
-  return player.ratings[pos] ?? 0;
+  return player && ["GK", "DEF", "MID", "FWD"].includes(pos)
+    ? getPositionRating(player as Player, pos as Position)
+    : 0;
 }
 
 function getPlayerStrength(player: any): number {
-  if (!player) return 50;
-
-  if (typeof player.overall === "number") return player.overall;
-  if (typeof player.rating === "number") return player.rating;
-  if (typeof player.ovr === "number") return player.ovr;
-
-  if (player.ratings && typeof player.ratings === "object") {
-    const ratings = Object.values(player.ratings).filter(
-      (v): v is number => typeof v === "number" && v !== undefined && !isNaN(v)
-    );
-    if (ratings.length > 0) {
-      return Math.max(...ratings);
-    }
-  }
-
-  return 50;
+  return player ? getOverallRating(player as Player) : 50;
 }
 
 function isGoalkeeperCandidate(player: any): boolean {
@@ -315,7 +291,7 @@ function fillMissingSlots(team: TeamState, perTeamSlots: FormationSlots): void {
         (p) =>
           p.assignedPosition !== pos &&
           p.assignedPosition !== "GK" &&
-          (p.ratings?.[pos] ?? 0) > 0
+          getRatingForPosition(p, pos) > 0
       );
 
       if (flexible) {
