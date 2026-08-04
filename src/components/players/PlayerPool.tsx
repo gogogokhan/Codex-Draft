@@ -341,15 +341,17 @@ export function PlayerPool({
 
           {!isSelectionMode ? (
             <>
-              <button
-                type="button"
-                onClick={onAddPlayerClick}
-                className="px-4 py-2.5 bg-[#0a2332]/80 hover:bg-[#0e3045] border border-[#00d2ff]/50 hover:border-[#00d2ff] rounded-2xl text-xs font-bold text-[#00d2ff] uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.2)] active:scale-95"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" /> Oyuncu Ekle
-              </button>
+              {onAddPlayerClick && (
+                <button
+                  type="button"
+                  onClick={onAddPlayerClick}
+                  className="px-4 py-2.5 bg-[#0a2332]/80 hover:bg-[#0e3045] border border-[#00d2ff]/50 hover:border-[#00d2ff] rounded-2xl text-xs font-bold text-[#00d2ff] uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.2)] active:scale-95"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" /> Oyuncu Ekle
+                </button>
+              )}
 
-              {players.length > 0 && (
+              {players.length > 0 && onDeletePlayers && (
                 <button
                   type="button"
                   onClick={() => setIsSelectionMode(true)}
@@ -359,7 +361,7 @@ export function PlayerPool({
                 </button>
               )}
 
-              {players.length > 0 && (
+              {players.length > 0 && onClearAllPlayers && (
                 <button
                   type="button"
                   onClick={() => setIsDeleteModalOpen(true)}

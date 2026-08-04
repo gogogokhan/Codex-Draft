@@ -12,7 +12,17 @@ import {
 } from "react";
 import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
-import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig, type DraftMode, type Position } from "@/types";
+import {
+  DEFAULT_TEAM_CONFIG,
+  DraftResult,
+  Player,
+  TeamConfig,
+  type DraftMode,
+  type Group,
+  type GroupMembership,
+  type GroupRole,
+  type Position,
+} from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import { getOverallRating, getPositionRating, normalizePositions } from "@/lib/positions";
 import { calculateTeamPower } from "@/lib/ratings";
@@ -55,6 +65,17 @@ interface AppContextValue {
   logout: () => Promise<void>;
   warningMessage: string | null;
   setWarningMessage: (message: string | null) => void;
+  groups: Group[];
+  activeGroup: Group | null;
+  activeGroupRole: GroupRole | null;
+  groupMembers: GroupMembership[];
+  isGroupsLoading: boolean;
+  canEditPlayers: boolean;
+  createGroup: (name: string) => Promise<AuthResponse>;
+  joinGroup: (code: string) => Promise<AuthResponse>;
+  selectGroup: (groupId: string) => void;
+  refreshGroupMembers: () => Promise<void>;
+  updateGroupMemberRole: (userId: string, role: Exclude<GroupRole, "owner">) => Promise<AuthResponse>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -233,6 +254,11 @@ const normalizePlayer = (player: any): Player => {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupRoles, setGroupRoles] = useState<Record<string, GroupRole>>({});
+  const [groupMembers, setGroupMembers] = useState<GroupMembership[]>([]);
+  const [isGroupsLoading, setIsGroupsLoading] = useState(true);
+  const [activeGroupId, setActiveGroupId] = usePersistentState<string | null>('codex-activeGroupId', null);
 
   const [players, setPlayers] = usePersistentState<Player[]>('codex-players', []);
   const [attendance, setAttendance] = usePersistentState<string[]>('codex-attendance', []);
@@ -244,16 +270,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
-  // Oyuncuları Supabase'den çek
-  const fetchPlayers = useCallback(async () => {
+  const activeGroup = groups.find((group) => group.id === activeGroupId) ?? null;
+  const activeGroupRole = activeGroup ? groupRoles[activeGroup.id] ?? null : null;
+  const canEditPlayers = activeGroupRole === "owner" || activeGroupRole === "editor";
+
+  const fetchGroups = useCallback(async () => {
+    setIsGroupsLoading(true);
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("group_id, role, groups(*)")
+      .order("joined_at", { ascending: true });
+
+    if (error) {
+      setGroups([]);
+      setGroupRoles({});
+      setIsGroupsLoading(false);
+      throw new Error(error.message);
+    }
+
+    const nextGroups: Group[] = [];
+    const nextRoles: Record<string, GroupRole> = {};
+    for (const row of data ?? []) {
+      const rawGroup = Array.isArray(row.groups) ? row.groups[0] : row.groups;
+      if (!rawGroup) continue;
+      const group = rawGroup as Group;
+      nextGroups.push(group);
+      nextRoles[group.id] = row.role as GroupRole;
+    }
+
+    setGroups(nextGroups);
+    setGroupRoles(nextRoles);
+    setActiveGroupId((currentId) =>
+      currentId && nextGroups.some((group) => group.id === currentId)
+        ? currentId
+        : nextGroups[0]?.id ?? null
+    );
+    setIsGroupsLoading(false);
+    return nextGroups;
+  }, [setActiveGroupId]);
+
+  // Oyuncuları aktif gruba göre Supabase'den çek
+  const fetchPlayers = useCallback(async (groupId: string) => {
     const { data, error } = await supabase
       .from("players")
       .select("*")
+      .eq("group_id", groupId)
       .order("created_at", { ascending: false });
     if (!error && data) {
       setPlayers(data.map((p) => normalizePlayer(p)));
     }
   }, [setPlayers]);
+
+  const refreshGroupMembers = useCallback(async () => {
+    if (!activeGroupId) {
+      setGroupMembers([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("group_id, user_id, role, display_name, joined_at")
+      .eq("group_id", activeGroupId)
+      .order("joined_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    setGroupMembers((data ?? []) as GroupMembership[]);
+  }, [activeGroupId]);
 
   // Oturum durumunu ve değişiklikleri dinle
   useEffect(() => {
@@ -268,7 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
         if (currentUser) {
-          await fetchPlayers();
+          await fetchGroups();
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
@@ -296,8 +376,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        fetchPlayers();
+        fetchGroups().catch((error) => console.error("Group fetch error:", error));
       } else {
+        setGroups([]);
+        setGroupRoles({});
+        setGroupMembers([]);
+        setActiveGroupId(null);
         setPlayers([]);
         setAttendance([]);
       }
@@ -308,7 +392,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearTimeout(hydrationTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchPlayers, setPlayers, setAttendance]);
+  }, [fetchGroups, setActiveGroupId, setPlayers, setAttendance]);
+
+  useEffect(() => {
+    if (!user || !activeGroupId) {
+      setPlayers([]);
+      setGroupMembers([]);
+      return;
+    }
+
+    fetchPlayers(activeGroupId).catch((error) => console.error("Player fetch error:", error));
+    refreshGroupMembers().catch((error) => console.error("Member fetch error:", error));
+
+    const channel = supabase
+      .channel(`group-players-${activeGroupId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "players", filter: `group_id=eq.${activeGroupId}` },
+        () => fetchPlayers(activeGroupId)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "group_members", filter: `group_id=eq.${activeGroupId}` },
+        () => {
+          fetchGroups().catch((error) => console.error("Group role refresh error:", error));
+          refreshGroupMembers().catch((error) => console.error("Member refresh error:", error));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeGroupId, fetchGroups, fetchPlayers, refreshGroupMembers, setPlayers]);
 
   // SUPABASE KAYIT
   const register = useCallback(
@@ -336,12 +452,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const activeUser = data.session?.user || data.user;
       if (activeUser) {
         setUser(activeUser);
-        await fetchPlayers();
+        await fetchGroups();
       }
 
       return { success: true };
     },
-    [fetchPlayers]
+    [fetchGroups]
   );
 
   // SUPABASE GİRİŞ
@@ -368,18 +484,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (data.session?.user || data.user) {
         setUser(data.session?.user || data.user);
-        await fetchPlayers();
+        await fetchGroups();
       }
 
       return { success: true };
     },
-    [fetchPlayers]
+    [fetchGroups]
   );
 
   // SUPABASE ÇIKIŞ
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setGroups([]);
+    setGroupRoles({});
+    setGroupMembers([]);
+    setActiveGroupId(null);
     setPlayers([]);
     setAttendance([]);
     setDraftResult(null);
@@ -387,16 +507,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentStepState("pool");
     setDraftMode("overall");
     setIsAdmin(false);
-  }, [setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setDraftMode, setIsAdmin]);
+  }, [setActiveGroupId, setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setDraftMode, setIsAdmin]);
+
+  const createGroup = useCallback(async (name: string): Promise<AuthResponse> => {
+    const cleanName = name.trim();
+    if (cleanName.length < 2) return { success: false, error: "Grup adı en az 2 karakter olmalıdır." };
+    const { data, error } = await supabase.rpc("create_group", { group_name: cleanName });
+    if (error) return { success: false, error: error.message };
+    const createdGroup = data as Group;
+    await fetchGroups();
+    if (createdGroup?.id) setActiveGroupId(createdGroup.id);
+    return { success: true };
+  }, [fetchGroups, setActiveGroupId]);
+
+  const joinGroup = useCallback(async (code: string): Promise<AuthResponse> => {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) return { success: false, error: "Davet kodunu giriniz." };
+    const { data, error } = await supabase.rpc("join_group_by_code", { join_code: cleanCode });
+    if (error) return { success: false, error: error.message };
+    const joinedGroup = data as Group;
+    await fetchGroups();
+    if (joinedGroup?.id) setActiveGroupId(joinedGroup.id);
+    return { success: true };
+  }, [fetchGroups, setActiveGroupId]);
+
+  const selectGroup = useCallback((groupId: string) => {
+    if (!groups.some((group) => group.id === groupId)) return;
+    setActiveGroupId(groupId);
+    setAttendance([]);
+    setDraftResult(null);
+    setCurrentStepState("pool");
+  }, [groups, setActiveGroupId, setAttendance, setDraftResult, setCurrentStepState]);
+
+  const updateGroupMemberRole = useCallback(async (
+    userId: string,
+    role: Exclude<GroupRole, "owner">
+  ): Promise<AuthResponse> => {
+    if (!activeGroupId) return { success: false, error: "Aktif grup bulunamadı." };
+    const { error } = await supabase.rpc("set_group_member_role", {
+      target_group_id: activeGroupId,
+      target_user_id: userId,
+      new_role: role,
+    });
+    if (error) return { success: false, error: error.message };
+    await refreshGroupMembers();
+    return { success: true };
+  }, [activeGroupId, refreshGroupMembers]);
 
   // OYUNCU EKLEME (DB Insert)
   const addPlayer = useCallback(
     async (player: Omit<Player, "id">) => {
-      if (!user) return;
+      if (!user || !activeGroup || !canEditPlayers) {
+        throw new Error("Bu grupta oyuncu ekleme yetkiniz bulunmuyor.");
+      }
       const { data, error } = await supabase
         .from("players")
         .insert({
           user_id: user.id,
+          group_id: activeGroup.id,
+          created_by: user.id,
+          updated_by: user.id,
           name: player.name,
           overall: (player as any).overall ?? 80,
           positions: player.positions.map((position) => JSON.stringify(position)),
@@ -411,19 +581,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error(error.message);
       }
     },
-    [user, setPlayers]
+    [user, activeGroup, canEditPlayers, setPlayers]
   );
 
   // OYUNCU GÜNCELLEME (DB Update)
   const updatePlayer = useCallback(async (player: Player) => {
+    if (!user || !activeGroup || !canEditPlayers) {
+      throw new Error("Bu grupta oyuncu düzenleme yetkiniz bulunmuyor.");
+    }
     const { error } = await supabase
       .from("players")
       .update({
         name: player.name,
         overall: (player as any).overall ?? 80,
         positions: player.positions.map((position) => JSON.stringify(position)),
+        updated_by: user.id,
       })
-      .eq("id", player.id);
+      .eq("id", player.id)
+      .eq("group_id", activeGroup.id);
 
     if (!error) {
       const normalizedPlayer = normalizePlayer(player);
@@ -467,14 +642,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       throw new Error(error.message);
     }
-  }, [draftMode, setDraftResult, setPlayers]);
+  }, [user, activeGroup, canEditPlayers, draftMode, setDraftResult, setPlayers]);
 
   // OYUNCU SİLME (tek veya toplu DB Delete)
   const deletePlayers = useCallback(async (ids: string[]) => {
+    if (!activeGroup || !canEditPlayers) {
+      throw new Error("Bu grupta oyuncu silme yetkiniz bulunmuyor.");
+    }
     const uniqueIds = Array.from(new Set(ids)).filter(Boolean);
     if (uniqueIds.length === 0) return;
 
-    const { error } = await supabase.from("players").delete().in("id", uniqueIds);
+    const { error } = await supabase
+      .from("players")
+      .delete()
+      .eq("group_id", activeGroup.id)
+      .in("id", uniqueIds);
     if (error) throw new Error(error.message);
 
     const deletedIds = new Set(uniqueIds);
@@ -487,7 +669,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       return containsDeletedPlayer ? null : currentDraft;
     });
-  }, [setPlayers, setAttendance, setDraftResult]);
+  }, [activeGroup, canEditPlayers, setPlayers, setAttendance, setDraftResult]);
 
   const deletePlayer = useCallback(
     async (id: string) => deletePlayers([id]),
@@ -583,6 +765,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout,
       warningMessage,
       setWarningMessage,
+      groups,
+      activeGroup,
+      activeGroupRole,
+      groupMembers,
+      isGroupsLoading,
+      canEditPlayers,
+      createGroup,
+      joinGroup,
+      selectGroup,
+      refreshGroupMembers,
+      updateGroupMemberRole,
     }),
     [
       players,
@@ -611,6 +804,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       warningMessage,
+      groups,
+      activeGroup,
+      activeGroupRole,
+      groupMembers,
+      isGroupsLoading,
+      canEditPlayers,
+      createGroup,
+      joinGroup,
+      selectGroup,
+      refreshGroupMembers,
+      updateGroupMemberRole,
     ]
   );
 

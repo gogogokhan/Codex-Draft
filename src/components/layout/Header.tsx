@@ -4,13 +4,17 @@ import React, { useState } from "react";
 import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/auth/AuthModal";
+import { GroupMenu } from "@/components/groups/GroupMenu";
 
 interface HeaderProps {
   onOpenAddPlayerModal?: () => void;
 }
 
 export function Header({ onOpenAddPlayerModal }: HeaderProps) {
-  const { currentStep, setCurrentStep, isAuthenticated, user, logout, players, setWarningMessage } = useApp();
+  const {
+    currentStep, setCurrentStep, isAuthenticated, user, logout, players,
+    setWarningMessage, activeGroup, canEditPlayers,
+  } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const isPool = currentStep === "pool";
@@ -78,7 +82,8 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
           {/* 3. SAĞ ALAN */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {onOpenAddPlayerModal && (
+            {isAuthenticated && activeGroup && <GroupMenu />}
+            {onOpenAddPlayerModal && activeGroup && canEditPlayers && (
               <button
                 type="button"
                 onClick={onOpenAddPlayerModal}
