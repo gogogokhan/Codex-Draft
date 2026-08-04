@@ -29,6 +29,7 @@ import { calculateTeamPower } from "@/lib/ratings";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export type StepType = "pool" | "settings" | "attendance" | "squad" | string;
+export type WorkspaceMode = "personal" | "community";
 export interface AuthResponse {
   success: boolean;
   error?: string;
@@ -71,6 +72,8 @@ interface AppContextValue {
   groupMembers: GroupMembership[];
   isGroupsLoading: boolean;
   canEditPlayers: boolean;
+  workspaceMode: WorkspaceMode;
+  selectPersonalWorkspace: () => void;
   createGroup: (name: string) => Promise<AuthResponse>;
   joinGroup: (code: string) => Promise<AuthResponse>;
   selectGroup: (groupId: string) => void;
@@ -261,6 +264,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [groupMembers, setGroupMembers] = useState<GroupMembership[]>([]);
   const [isGroupsLoading, setIsGroupsLoading] = useState(true);
   const [activeGroupId, setActiveGroupId] = usePersistentState<string | null>('codex-activeGroupId', null);
+  const [workspaceMode, setWorkspaceMode] = usePersistentState<WorkspaceMode>('codex-workspaceMode', "personal");
 
   const [players, setPlayers] = usePersistentState<Player[]>('codex-players', []);
   const [attendance, setAttendance] = usePersistentState<string[]>('codex-attendance', []);
@@ -274,7 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? null;
   const activeGroupRole = activeGroup ? groupRoles[activeGroup.id] ?? null : null;
-  const canEditPlayers = activeGroupRole === "owner" || activeGroupRole === "editor";
+  const canEditPlayers = workspaceMode === "personal" || activeGroupRole === "owner" || activeGroupRole === "editor";
 
   const fetchGroups = useCallback(async () => {
     setIsGroupsLoading(true);
@@ -336,16 +340,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setActiveGroupId]);
 
   // Oyuncuları aktif gruba göre Supabase'den çek
-  const fetchPlayers = useCallback(async (groupId: string) => {
-    const { data, error } = await supabase
-      .from("players")
-      .select("*")
-      .eq("group_id", groupId)
-      .order("created_at", { ascending: false });
+  const fetchPlayers = useCallback(async (groupId: string | null) => {
+    let query = supabase.from("players").select("*");
+    query = groupId
+      ? query.eq("group_id", groupId)
+      : query.is("group_id", null).eq("user_id", user?.id ?? "");
+    const { data, error } = await query.order("created_at", { ascending: false });
     if (!error && data) {
       setPlayers(data.map((p) => normalizePlayer(p)));
     }
-  }, [setPlayers]);
+  }, [user?.id, setPlayers]);
 
   const refreshGroupMembers = useCallback(async () => {
     if (!activeGroupId) {
@@ -421,39 +425,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [fetchGroups, setActiveGroupId, setPlayers, setAttendance]);
 
   useEffect(() => {
-    if (!user || !activeGroupId) {
+    const selectedGroupId = workspaceMode === "community" ? activeGroupId : null;
+    if (!user || (workspaceMode === "community" && !selectedGroupId)) {
       setPlayers([]);
       setGroupMembers([]);
       return;
     }
 
-    fetchPlayers(activeGroupId).catch((error) => console.error("Player fetch error:", error));
-    refreshGroupMembers().catch((error) => console.error("Member fetch error:", error));
+    fetchPlayers(selectedGroupId).catch((error) => console.error("Player fetch error:", error));
+    if (selectedGroupId) refreshGroupMembers().catch((error) => console.error("Member fetch error:", error));
+    else setGroupMembers([]);
 
     const channel = supabase
-      .channel(`group-players-${activeGroupId}`)
+      .channel(selectedGroupId ? `group-players-${selectedGroupId}` : `personal-players-${user.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "players", filter: `group_id=eq.${activeGroupId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "players",
+          filter: selectedGroupId ? `group_id=eq.${selectedGroupId}` : `user_id=eq.${user.id}`,
+        },
         () => {
-          fetchPlayers(activeGroupId).catch((error) => console.error("Player refresh error:", error));
-          fetchGroups().catch((error) => console.error("Community stats refresh error:", error));
+          fetchPlayers(selectedGroupId).catch((error) => console.error("Player refresh error:", error));
+          if (selectedGroupId) fetchGroups().catch((error) => console.error("Community stats refresh error:", error));
         }
-      )
-      .on(
+      );
+    if (selectedGroupId) {
+      channel.on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "group_members", filter: `group_id=eq.${activeGroupId}` },
+        { event: "*", schema: "public", table: "group_members", filter: `group_id=eq.${selectedGroupId}` },
         () => {
           fetchGroups().catch((error) => console.error("Group role refresh error:", error));
           refreshGroupMembers().catch((error) => console.error("Member refresh error:", error));
         }
-      )
-      .subscribe();
+      );
+    }
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, fetchGroups, fetchPlayers, refreshGroupMembers, setPlayers]);
+  }, [user, activeGroupId, workspaceMode, fetchGroups, fetchPlayers, refreshGroupMembers, setPlayers]);
 
   // SUPABASE KAYIT
   const register = useCallback(
@@ -534,9 +547,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDraftResult(null);
     setTeamConfigState(DEFAULT_TEAM_CONFIG);
     setCurrentStepState("pool");
+    setWorkspaceMode("personal");
     setDraftMode("overall");
     setIsAdmin(false);
-  }, [setActiveGroupId, setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setDraftMode, setIsAdmin]);
+  }, [setActiveGroupId, setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setWorkspaceMode, setDraftMode, setIsAdmin]);
 
   const createGroup = useCallback(async (name: string): Promise<AuthResponse> => {
     const cleanName = name.trim();
@@ -548,9 +562,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (error) return { success: false, error: error.message };
     const createdGroup = data as Group;
     await fetchGroups();
-    if (createdGroup?.id) setActiveGroupId(createdGroup.id);
+    if (createdGroup?.id) {
+      setActiveGroupId(createdGroup.id);
+      setWorkspaceMode("community");
+    }
     return { success: true };
-  }, [groups, fetchGroups, setActiveGroupId]);
+  }, [groups, fetchGroups, setActiveGroupId, setWorkspaceMode]);
 
   const joinGroup = useCallback(async (code: string): Promise<AuthResponse> => {
     const cleanCode = code.trim().toUpperCase();
@@ -559,17 +576,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (error) return { success: false, error: error.message };
     const joinedGroup = data as Group;
     await fetchGroups();
-    if (joinedGroup?.id) setActiveGroupId(joinedGroup.id);
+    if (joinedGroup?.id) {
+      setActiveGroupId(joinedGroup.id);
+      setWorkspaceMode("community");
+    }
     return { success: true };
-  }, [fetchGroups, setActiveGroupId]);
+  }, [fetchGroups, setActiveGroupId, setWorkspaceMode]);
 
   const selectGroup = useCallback((groupId: string) => {
     if (!groups.some((group) => group.id === groupId)) return;
     setActiveGroupId(groupId);
+    setWorkspaceMode("community");
+    setAttendance([]);
+    setDraftResult(null);
+  }, [groups, setActiveGroupId, setWorkspaceMode, setAttendance, setDraftResult]);
+
+  const selectPersonalWorkspace = useCallback(() => {
+    setWorkspaceMode("personal");
     setAttendance([]);
     setDraftResult(null);
     setCurrentStepState("pool");
-  }, [groups, setActiveGroupId, setAttendance, setDraftResult, setCurrentStepState]);
+  }, [setWorkspaceMode, setAttendance, setDraftResult, setCurrentStepState]);
 
   const updateGroupMemberRole = useCallback(async (
     userId: string,
@@ -613,14 +640,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // OYUNCU EKLEME (DB Insert)
   const addPlayer = useCallback(
     async (player: Omit<Player, "id">) => {
-      if (!user || !activeGroup || !canEditPlayers) {
-        throw new Error("Bu grupta oyuncu ekleme yetkiniz bulunmuyor.");
+      if (!user || !canEditPlayers || (workspaceMode === "community" && !activeGroup)) {
+        throw new Error("Bu alanda oyuncu ekleme yetkiniz bulunmuyor.");
       }
       const { data, error } = await supabase
         .from("players")
         .insert({
           user_id: user.id,
-          group_id: activeGroup.id,
+          group_id: workspaceMode === "community" ? activeGroup?.id : null,
           created_by: user.id,
           updated_by: user.id,
           name: player.name,
@@ -637,15 +664,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error(error.message);
       }
     },
-    [user, activeGroup, canEditPlayers, setPlayers]
+    [user, activeGroup, workspaceMode, canEditPlayers, setPlayers]
   );
 
   // OYUNCU GÜNCELLEME (DB Update)
   const updatePlayer = useCallback(async (player: Player) => {
-    if (!user || !activeGroup || !canEditPlayers) {
-      throw new Error("Bu grupta oyuncu düzenleme yetkiniz bulunmuyor.");
+    if (!user || !canEditPlayers || (workspaceMode === "community" && !activeGroup)) {
+      throw new Error("Bu alanda oyuncu düzenleme yetkiniz bulunmuyor.");
     }
-    const { error } = await supabase
+    let updateQuery = supabase
       .from("players")
       .update({
         name: player.name,
@@ -653,8 +680,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         positions: player.positions.map((position) => JSON.stringify(position)),
         updated_by: user.id,
       })
-      .eq("id", player.id)
-      .eq("group_id", activeGroup.id);
+      .eq("id", player.id);
+    updateQuery = workspaceMode === "community"
+      ? updateQuery.eq("group_id", activeGroup?.id ?? "")
+      : updateQuery.is("group_id", null).eq("user_id", user.id);
+    const { error } = await updateQuery;
 
     if (!error) {
       const normalizedPlayer = normalizePlayer(player);
@@ -698,21 +728,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       throw new Error(error.message);
     }
-  }, [user, activeGroup, canEditPlayers, draftMode, setDraftResult, setPlayers]);
+  }, [user, activeGroup, workspaceMode, canEditPlayers, draftMode, setDraftResult, setPlayers]);
 
   // OYUNCU SİLME (tek veya toplu DB Delete)
   const deletePlayers = useCallback(async (ids: string[]) => {
-    if (!activeGroup || !canEditPlayers) {
-      throw new Error("Bu grupta oyuncu silme yetkiniz bulunmuyor.");
+    if (!user || !canEditPlayers || (workspaceMode === "community" && !activeGroup)) {
+      throw new Error("Bu alanda oyuncu silme yetkiniz bulunmuyor.");
     }
     const uniqueIds = Array.from(new Set(ids)).filter(Boolean);
     if (uniqueIds.length === 0) return;
 
-    const { error } = await supabase
+    let deleteQuery = supabase
       .from("players")
       .delete()
-      .eq("group_id", activeGroup.id)
       .in("id", uniqueIds);
+    deleteQuery = workspaceMode === "community"
+      ? deleteQuery.eq("group_id", activeGroup?.id ?? "")
+      : deleteQuery.is("group_id", null).eq("user_id", user.id);
+    const { error } = await deleteQuery;
     if (error) throw new Error(error.message);
 
     const deletedIds = new Set(uniqueIds);
@@ -725,7 +758,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
       return containsDeletedPlayer ? null : currentDraft;
     });
-  }, [activeGroup, canEditPlayers, setPlayers, setAttendance, setDraftResult]);
+  }, [user, activeGroup, workspaceMode, canEditPlayers, setPlayers, setAttendance, setDraftResult]);
 
   const deletePlayer = useCallback(
     async (id: string) => deletePlayers([id]),
@@ -827,6 +860,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       groupMembers,
       isGroupsLoading,
       canEditPlayers,
+      workspaceMode,
+      selectPersonalWorkspace,
       createGroup,
       joinGroup,
       selectGroup,
@@ -868,6 +903,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       groupMembers,
       isGroupsLoading,
       canEditPlayers,
+      workspaceMode,
+      selectPersonalWorkspace,
       createGroup,
       joinGroup,
       selectGroup,

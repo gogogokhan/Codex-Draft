@@ -15,7 +15,7 @@ import { CommunityHub } from "@/components/community/CommunityHub";
 export default function HomePage() {
   const {
     currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
-    activeGroup, isGroupsLoading, canEditPlayers,
+    canEditPlayers,
   } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -52,9 +52,7 @@ export default function HomePage() {
         currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"
       }`}>
         <AuthGuard>
-          {isGroupsLoading ? (
-            <div className="py-20 text-center text-sm font-bold text-zinc-400">Gruplar yükleniyor...</div>
-          ) : currentStep === "community" || !activeGroup ? (
+          {currentStep === "community" ? (
             <CommunityHub />
           ) : (
           <>

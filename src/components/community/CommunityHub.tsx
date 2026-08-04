@@ -43,6 +43,7 @@ export function CommunityHub() {
     renameGroup,
     deleteGroup,
     setCurrentStep,
+    selectPersonalWorkspace,
   } = useApp();
   const [view, setView] = useState<View>("communities");
   const [formMode, setFormMode] = useState<FormMode>(null);
@@ -116,7 +117,10 @@ export function CommunityHub() {
   const renderCommunities = () => (
     <>
       <div className="mb-8">
-        <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-400">Codex Draft</p>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-400">Codex Draft</p>
+          <button type="button" onClick={selectPersonalWorkspace} className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-black text-cyan-200 hover:bg-cyan-500/20">Kişisel Alana Dön</button>
+        </div>
         <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">Topluluklarım</h2>
         <p className="mt-2 text-sm text-zinc-400">Ortak oyuncu havuzuna erişmek için bir topluluk seç.</p>
       </div>
