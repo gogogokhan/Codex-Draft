@@ -3,10 +3,10 @@ import type { Player, PlayerPosition, Position } from "@/types";
 export const POSITION_CODES: Position[] = ["GK", "DEF", "MID", "FWD"];
 
 export const POSITION_LABELS: Record<Position, string> = {
-  GK: "Kaleci",
-  DEF: "Defans",
-  MID: "Orta Saha",
-  FWD: "Forvet",
+  GK: "KL",
+  DEF: "DEF",
+  MID: "ORT",
+  FWD: "FV",
 };
 
 export function isPosition(value: unknown): value is Position {
@@ -22,7 +22,20 @@ export function getPositionRating(player: Player, code: Position): number {
 }
 
 export function getOverallRating(player: Player): number {
-  return getPositionRating(player, getMainPosition(player)) || player.overall || 50;
+  const mainPosition = getMainPosition(player);
+  const mainRating = getPositionRating(player, mainPosition) || player.overall || 50;
+
+  const versatilityBonus = player.positions.reduce((total, position) => {
+    if (position.code === mainPosition) return total;
+
+    const difference = mainRating - position.rating;
+    if (difference <= 3) return total + 1;
+    if (difference <= 6) return total + 0.7;
+    if (difference <= 10) return total + 0.3;
+    return total;
+  }, 0);
+
+  return Math.min(99, Math.round(mainRating + Math.min(3, versatilityBonus)));
 }
 
 export function normalizePositions(value: unknown, fallbackOverall = 50, fallbackPosition: Position = "MID"): PlayerPosition[] {

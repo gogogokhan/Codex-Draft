@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Star, Trash2, Plus, UserPlus, UserCheck, Ban, Loader2 } from 'lucide-react';
 import { formatPlayerName } from '@/lib/playerName';
+import { POSITION_LABELS } from '@/lib/positions';
 
 export interface PositionItem {
   code: 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -25,10 +26,10 @@ export interface PlayerModalProps {
 }
 
 const POSITIONS = [
-  { code: 'GK', label: 'Kaleci' },
-  { code: 'DEF', label: 'Defans' },
-  { code: 'MID', label: 'Orta Saha' },
-  { code: 'FWD', label: 'Forvet' },
+  { code: 'GK', label: POSITION_LABELS.GK },
+  { code: 'DEF', label: POSITION_LABELS.DEF },
+  { code: 'MID', label: POSITION_LABELS.MID },
+  { code: 'FWD', label: POSITION_LABELS.FWD },
 ] as const;
 
 export function PlayerModal({
@@ -57,11 +58,11 @@ export function PlayerModal({
   const getLabelByCode = useCallback((codeStr: string): string => {
     const found = POSITIONS.find((p) => p.code === codeStr);
     if (found) return found.label;
-    if (codeStr === 'GK' || codeStr === 'KL') return 'Kaleci';
-    if (codeStr === 'DEF') return 'Defans';
-    if (codeStr === 'MID') return 'Orta Saha';
-    if (codeStr === 'FWD' || codeStr === 'ST') return 'Forvet';
-    return codeStr || 'Kaleci';
+    if (codeStr === 'GK' || codeStr === 'KL') return POSITION_LABELS.GK;
+    if (codeStr === 'DEF') return POSITION_LABELS.DEF;
+    if (codeStr === 'MID' || codeStr === 'ORT') return POSITION_LABELS.MID;
+    if (codeStr === 'FWD' || codeStr === 'FV' || codeStr === 'ST') return POSITION_LABELS.FWD;
+    return codeStr || POSITION_LABELS.GK;
   }, []);
 
   const handleModalClose = useCallback(() => {

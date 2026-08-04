@@ -3,7 +3,9 @@
 import React, { useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { PlayerCard } from './PlayerCard';
-import { Zap, Shield, RefreshCw, ArrowLeft, Trophy, Users } from 'lucide-react';
+import { Zap, Shield, Shuffle, RefreshCw, ArrowLeft, Trophy, Users } from 'lucide-react';
+import { getMainPosition, getOverallRating, getPositionRating, POSITION_LABELS } from '@/lib/positions';
+import type { Player, Position } from '@/types';
 
 // Formasyon ister string ("1-2-2-2") ister obje ({gk:1, def:2...}) gelsin, metne dönüştüren güvenli yardımcı
 const getFormationString = (formation: any): string => {
@@ -20,7 +22,18 @@ const getFormationString = (formation: any): string => {
   return String(formation);
 };
 
-export function SquadPitch() {
+interface SquadPitchProps {
+  onPlayerClick?: (player: Player) => void;
+}
+
+const POSITION_ORDER: Record<Position, number> = {
+  GK: 0,
+  DEF: 1,
+  MID: 2,
+  FWD: 3,
+};
+
+export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
   const {
     draftResult,
     teamConfig,
@@ -37,67 +50,18 @@ export function SquadPitch() {
     }
   }, [draftResult, attendance.length, generateDraft]);
 
-  // Akıllı Mevki Dizilim Algoritması
+  // Draft motorunun kesin atamalarını saha gruplarına dönüştürür.
   const arrangePlayersByFormation = (playersList: any[]) => {
     if (!playersList || playersList.length === 0) {
       return { gk: [], def: [], mid: [], fwd: [] };
     }
 
-    // Güvenli şekilde formasyon metnini alıp dizilimi parçalıyoruz
-    const formationStr = getFormationString(teamConfig?.formation);
-    const parts = formationStr.split('-').map((n) => parseInt(n, 10) || 0);
-
-    const targetDef = parts.length === 4 ? parts[1] : parts[0] || 2;
-    const targetMid = parts.length === 4 ? parts[2] : parts[1] || 2;
-    const targetFwd = parts.length === 4 ? parts[3] : parts[2] || 2;
-
-    const pool = [...playersList];
-    const result = { gk: [] as any[], def: [] as any[], mid: [] as any[], fwd: [] as any[] };
-
-    const getRawPos = (p: any) => {
-      const raw = p.assignedPosition || p.positions?.find((position: any) => position.isMain)?.code || '';
-      return Array.isArray(raw) ? raw.join(' ') : String(raw);
+    return {
+      gk: playersList.filter((player) => player.assignedPosition === 'GK'),
+      def: playersList.filter((player) => player.assignedPosition === 'DEF'),
+      mid: playersList.filter((player) => player.assignedPosition === 'MID'),
+      fwd: playersList.filter((player) => player.assignedPosition === 'FWD'),
     };
-
-    const pullByPosition = (targetPosStr: string) => {
-      const idx = pool.findIndex((p) =>
-        getRawPos(p).toUpperCase().includes(targetPosStr.toUpperCase())
-      );
-      if (idx !== -1) return pool.splice(idx, 1)[0];
-      return null;
-    };
-
-    // Kaleci
-    const gk = pullByPosition('KALECİ') || pullByPosition('GK') || pool.shift();
-    if (gk) result.gk.push(gk);
-
-    // Defans
-    for (let i = 0; i < targetDef; i++) {
-      const p = pullByPosition('DEFANS') || pullByPosition('DEF');
-      if (p) result.def.push(p);
-    }
-
-    // Orta Saha
-    for (let i = 0; i < targetMid; i++) {
-      const p = pullByPosition('ORTA') || pullByPosition('MID');
-      if (p) result.mid.push(p);
-    }
-
-    // Forvet
-    for (let i = 0; i < targetFwd; i++) {
-      const p = pullByPosition('FORVET') || pullByPosition('FWD');
-      if (p) result.fwd.push(p);
-    }
-
-    // Artan oyuncuları yerleştir
-    while (pool.length > 0) {
-      const leftover = pool.shift();
-      if (result.def.length < targetDef) result.def.push(leftover);
-      else if (result.mid.length < targetMid) result.mid.push(leftover);
-      else result.fwd.push(leftover);
-    }
-
-    return result;
   };
 
   // Henüz draft yapılmadıysa gösterilecek boş durum paneli
@@ -145,29 +109,57 @@ export function SquadPitch() {
   // Takım Ortalama Hesaplama
   const calcAvgRating = (players: any[]) => {
     if (!players || players.length === 0) return "0.0";
-    const sum = players.reduce((acc, p) => acc + (Number(p.overall ?? p.rating ?? p.ovr ?? 80) || 0), 0);
+    const sum = players.reduce((acc, player) => {
+      const normalizedPlayer = player as Player;
+      const assignedPosition = player.assignedPosition as Position | undefined;
+      const rating = draftMode === 'overall'
+        ? getOverallRating(normalizedPlayer)
+        : Number(
+            player.effectiveRating ??
+            (assignedPosition
+              ? getPositionRating(normalizedPlayer, assignedPosition)
+              : getPositionRating(normalizedPlayer, getMainPosition(normalizedPlayer)))
+          );
+      return acc + rating;
+    }, 0);
     return (sum / players.length).toFixed(1);
   };
 
   const teamAAvg = calcAvgRating(teamAPlayers);
   const teamBAvg = calcAvgRating(teamBPlayers);
+  const draftModePresentation =
+    draftMode === 'overall'
+      ? {
+          icon: <Zap className="h-5 w-5" />,
+          label: '⚡ Genel Rating (OVR)',
+          description: 'Takımlar toplam OVR gücüne göre dengelenmiştir.',
+        }
+      : draftMode === 'positional'
+      ? {
+          icon: <Shield className="h-5 w-5" />,
+          label: '🛡️ Mevki Dağılımlı',
+          description: 'Takımlar atanmış mevki ratingleri ve blok güçlerine göre dengelenmiştir.',
+        }
+      : {
+          icon: <Shuffle className="h-5 w-5" />,
+          label: '🔀 Rastgele Ata',
+          description: 'Takımlar rating dengesi gözetilmeden rastgele oluşturulmuştur.',
+        };
 
   // Mevki Rozeti Yardımcısı
   const getPosBadge = (player: any) => {
-    const rawStr = String(
+    const position = String(
       player.assignedPosition || player.positions?.find((position: any) => position.isMain)?.code || ''
-    );
-    
-    const upper = rawStr.toUpperCase();
-    if (upper.includes('KALECİ') || upper.includes('GK')) return { text: 'KL', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
-    if (upper.includes('DEFANS') || upper.includes('DEF')) return { text: 'DEF', color: 'bg-blue-500/20 text-blue-300 border-blue-500/40' };
-    if (upper.includes('ORTA') || upper.includes('MID')) return { text: 'ORT', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' };
-    if (upper.includes('FORVET') || upper.includes('FWD')) return { text: 'FOR', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };
+    ).toUpperCase() as Position;
+
+    if (position === 'GK') return { text: POSITION_LABELS.GK, color: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
+    if (position === 'DEF') return { text: POSITION_LABELS.DEF, color: 'bg-blue-500/20 text-blue-300 border-blue-500/40' };
+    if (position === 'MID') return { text: POSITION_LABELS.MID, color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' };
+    if (position === 'FWD') return { text: POSITION_LABELS.FWD, color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };
     return { text: 'OYO', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
   };
 
-  // Tekil Takım Görünümü
-  const SingleTeamSection = ({
+  const TeamPanel = ({
     teamName,
     players,
     avgRating,
@@ -176,17 +168,23 @@ export function SquadPitch() {
     players: any[];
     avgRating: string;
   }) => {
-    const layout = arrangePlayersByFormation(players);
+    const sortedPlayers = [...players].sort((a, b) => {
+      const positionDifference =
+        (POSITION_ORDER[a.assignedPosition as Position] ?? 99) -
+        (POSITION_ORDER[b.assignedPosition as Position] ?? 99);
+      if (positionDifference !== 0) return positionDifference;
+      return String(a.name || a.fullName).localeCompare(
+        String(b.name || b.fullName),
+        'tr'
+      );
+    });
 
     return (
-      <div className="flex flex-col lg:flex-row gap-6 items-stretch w-full max-w-7xl mx-auto">
-        
-        {/* SOL PANEL: TAKIM ADI & KADRO LİSTESİ */}
-        <div className="w-full lg:w-80 flex flex-col justify-between gap-4 bg-slate-950/80 backdrop-blur-md border border-cyan-500/30 rounded-3xl p-6 shadow-2xl shadow-cyan-950/20">
+      <aside className="flex min-h-[420px] w-full flex-col justify-between gap-4 rounded-3xl border border-cyan-500/30 bg-slate-950/80 p-4 shadow-2xl shadow-cyan-950/20 backdrop-blur-md xl:min-h-[1100px]">
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black tracking-widest uppercase text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-sky-300 to-indigo-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                <h2 className="truncate text-xl font-black tracking-widest uppercase text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 via-sky-300 to-indigo-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                   {teamName}
                 </h2>
                 <div className="flex items-center gap-1 bg-amber-400/10 border border-amber-400/30 text-amber-300 px-2 py-0.5 rounded-lg text-xs font-black">
@@ -208,20 +206,22 @@ export function SquadPitch() {
               </h3>
               
               <div className="flex flex-col gap-2 max-h-[480px] overflow-y-auto pr-1">
-                {players.map((player: any, idx: number) => {
+                {sortedPlayers.map((player: any, idx: number) => {
                   const badge = getPosBadge(player);
                   const rating = player.overall || player.rating || player.ovr || 80;
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={player.id || idx}
-                      className="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/40 rounded-xl px-3 py-2 transition-all"
+                      onClick={() => onPlayerClick?.(player)}
+                      className="flex w-full items-center justify-between bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/60 hover:bg-slate-900 rounded-xl px-3 py-2 transition-all cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-cyan-400/70"
                     >
                       <div className="flex items-center gap-2.5 overflow-hidden">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${badge.color}`}>
                           {badge.text}
                         </span>
-                        <span className="text-xs font-bold text-zinc-200 truncate max-w-[140px]">
+                        <span className="max-w-[120px] truncate text-xs font-bold text-zinc-200">
                           {player.name || player.fullName}
                         </span>
                       </div>
@@ -229,7 +229,7 @@ export function SquadPitch() {
                       <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
                         {rating}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -239,78 +239,60 @@ export function SquadPitch() {
           <div className="text-[10px] text-center font-bold text-cyan-500/50 uppercase tracking-widest pt-2 border-t border-cyan-500/10">
             Codex Tactical Board
           </div>
-        </div>
+      </aside>
+    );
+  };
 
-        {/* SAĞ TARAF: 2D SAHA */}
-        <div className="flex-1 w-full relative min-h-[660px] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-          
-          <div className="relative w-full h-[640px] bg-gradient-to-b from-blue-950/90 via-slate-950/95 to-blue-950/90 rounded-3xl border-2 border-cyan-400/40 shadow-[0_0_50px_rgba(34,211,238,0.2)]">
-            
-            {/* SAHA ÇİZGİLERİ */}
-            <div className="absolute inset-4 border-2 border-cyan-300/30 rounded-2xl pointer-events-none">
-              <div className="absolute top-1/2 inset-x-0 h-0.5 bg-cyan-300/30" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 border-2 border-cyan-300/30 rounded-full" />
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 border-b-2 border-x-2 border-cyan-300/30" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-64 h-32 border-t-2 border-x-2 border-cyan-300/30" />
-            </div>
+  const getPitchLineWidthClass = (playerCount: number) => {
+    if (playerCount === 1) return 'max-w-[180px] px-0';
+    if (playerCount === 2) return 'max-w-[62%] px-0';
+    if (playerCount === 3) return 'max-w-[90%] px-5';
+    return 'max-w-none px-5 sm:px-10';
+  };
 
-            {/* OYUNCU KARTLARI */}
-            <div className="absolute inset-0 z-20 pointer-events-auto">
-              
-              {/* 1. FORVET BLOĞU */}
-              <div className="absolute top-[25px] inset-x-0 flex justify-around items-center h-[128px] w-full max-w-3xl mx-auto px-6">
-                {layout.fwd.map((player: any, idx: number) => (
-                  <div
-                    key={player.id || idx}
-                    className="w-24 h-32 flex-shrink-0 flex items-center justify-center transform hover:scale-105 transition-all"
-                  >
-                    <PlayerCard player={player} compact />
-                  </div>
-                ))}
-              </div>
-
-              {/* 2. ORTA SAHA BLOĞU */}
-              <div className="absolute top-[180px] inset-x-0 flex justify-around items-center h-[128px] w-full max-w-3xl mx-auto px-6">
-                {layout.mid.map((player: any, idx: number) => (
-                  <div
-                    key={player.id || idx}
-                    className="w-24 h-32 flex-shrink-0 flex items-center justify-center transform hover:scale-105 transition-all"
-                  >
-                    <PlayerCard player={player} compact />
-                  </div>
-                ))}
-              </div>
-
-              {/* 3. DEFANS BLOĞU */}
-              <div className="absolute top-[345px] inset-x-0 flex justify-around items-center h-[128px] w-full max-w-3xl mx-auto px-6">
-                {layout.def.map((player: any, idx: number) => (
-                  <div
-                    key={player.id || idx}
-                    className="w-24 h-32 flex-shrink-0 flex items-center justify-center transform hover:scale-105 transition-all"
-                  >
-                    <PlayerCard player={player} compact />
-                  </div>
-                ))}
-              </div>
-
-              {/* 4. KALECİ BLOĞU */}
-              <div className="absolute top-[490px] inset-x-0 flex justify-center items-center h-[128px] w-full px-6">
-                {layout.gk.map((player: any, idx: number) => (
-                  <div
-                    key={player.id || idx}
-                    className="w-24 h-32 flex-shrink-0 flex items-center justify-center transform hover:scale-105 transition-all"
-                  >
-                    <PlayerCard player={player} compact />
-                  </div>
-                ))}
-              </div>
-
-            </div>
-
+  const PitchLine = ({ players, className }: { players: any[]; className: string }) => (
+    <div
+      className={`absolute inset-x-0 mx-auto flex h-[158px] w-full items-center justify-around ${getPitchLineWidthClass(players.length)} ${className}`}
+    >
+      {players.map((player: any, idx: number) => (
+        <div
+          key={player.id || idx}
+          className="flex h-[158px] w-[110px] shrink-0 cursor-pointer items-center justify-center transition-transform hover:scale-105"
+        >
+          <div className="scale-[0.96]">
+            <PlayerCard player={player} compact onClick={() => onPlayerClick?.(player)} />
           </div>
+        </div>
+      ))}
+    </div>
+  );
 
+  const SharedPitch = () => {
+    const teamA = arrangePlayersByFormation(teamAPlayers);
+    const teamB = arrangePlayersByFormation(teamBPlayers);
+
+    return (
+      <div className="relative h-[1100px] w-full min-w-0 overflow-hidden rounded-3xl border-2 border-cyan-400/40 bg-gradient-to-b from-emerald-800 via-green-900 to-emerald-950 shadow-[0_0_50px_rgba(16,185,129,0.22)]">
+        <div className="pointer-events-none absolute inset-0 opacity-20 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.10)_0,rgba(255,255,255,0.10)_12.5%,rgba(0,0,0,0.08)_12.5%,rgba(0,0,0,0.08)_25%)]" />
+        <div className="pointer-events-none absolute inset-4 rounded-2xl border-2 border-cyan-200/40">
+          <div className="absolute inset-x-0 top-1/2 h-0.5 bg-cyan-200/40" />
+          <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cyan-200/40" />
+          <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-200/50" />
+          <div className="absolute left-1/2 top-0 h-28 w-[42%] -translate-x-1/2 border-b-2 border-l-2 border-r-2 border-cyan-200/40" />
+          <div className="absolute bottom-0 left-1/2 h-28 w-[42%] -translate-x-1/2 border-l-2 border-r-2 border-t-2 border-cyan-200/40" />
         </div>
 
+        <div className="absolute inset-0 z-20">
+          <PitchLine players={teamA.gk} className="top-0" />
+          <PitchLine players={teamA.def} className="top-[12.5%]" />
+          <PitchLine players={teamA.mid} className="top-[25%]" />
+          <PitchLine players={teamA.fwd} className="top-[37.5%]" />
+
+          <PitchLine players={teamB.fwd} className="top-[50.5%]" />
+          <PitchLine players={teamB.mid} className="top-[63%]" />
+          <PitchLine players={teamB.def} className="top-[75.5%]" />
+          <PitchLine players={teamB.gk} className="top-[88%]" />
+        </div>
       </div>
     );
   };
@@ -323,17 +305,17 @@ export function SquadPitch() {
         {/* AKTİF DENGELEME MODU ROZETİ */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-            {draftMode === 'overall' ? <Zap className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+            {draftModePresentation.icon}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-zinc-400">Aktif Kriter:</span>
               <span className="text-xs font-black uppercase text-cyan-300 bg-cyan-950/80 border border-cyan-500/30 px-2.5 py-0.5 rounded-md">
-                {draftMode === 'overall' ? '⚡ Genel Rating (OVR)' : '🛡️ Mevki Dağılımlı'}
+                {draftModePresentation.label}
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-0.5">
-              Takımlar bu kritere göre dengelenmiştir.
+              {draftModePresentation.description}
             </p>
           </div>
         </div>
@@ -360,20 +342,11 @@ export function SquadPitch() {
         </div>
       </div>
 
-      {/* 1. TAKIM */}
-      <SingleTeamSection teamName={teamAName} players={teamAPlayers} avgRating={teamAAvg} />
-
-      {/* İKİ TAKIM AYIRACI */}
-      <div className="relative flex py-2 items-center justify-center max-w-7xl mx-auto">
-        <div className="flex-grow border-t border-cyan-500/20"></div>
-        <span className="flex-shrink mx-4 text-cyan-400 font-black text-xs tracking-widest uppercase bg-slate-900 border border-cyan-500/30 px-5 py-2 rounded-full shadow-lg shadow-cyan-950/50">
-          VS
-        </span>
-        <div className="flex-grow border-t border-cyan-500/20"></div>
+      <div className="mx-auto grid w-full max-w-[1380px] grid-cols-1 items-stretch gap-4 xl:grid-cols-[260px_minmax(620px,1fr)_260px]">
+        <TeamPanel teamName={teamAName} players={teamAPlayers} avgRating={teamAAvg} />
+        <SharedPitch />
+        <TeamPanel teamName={teamBName} players={teamBPlayers} avgRating={teamBAvg} />
       </div>
-
-      {/* 2. TAKIM */}
-      <SingleTeamSection teamName={teamBName} players={teamBPlayers} avgRating={teamBAvg} />
     </div>
   );
 }

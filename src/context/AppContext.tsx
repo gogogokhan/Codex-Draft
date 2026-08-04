@@ -12,14 +12,13 @@ import {
 } from "react";
 import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
-import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig, type Position } from "@/types";
+import { DEFAULT_TEAM_CONFIG, DraftResult, Player, TeamConfig, type DraftMode, type Position } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
-import { normalizePositions } from "@/lib/positions";
+import { getOverallRating, getPositionRating, normalizePositions } from "@/lib/positions";
+import { calculateTeamPower } from "@/lib/ratings";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export type StepType = "pool" | "settings" | "attendance" | "squad" | string;
-export type DraftMode = "overall" | "positional";
-
 export interface AuthResponse {
   success: boolean;
   error?: string;
@@ -30,6 +29,7 @@ interface AppContextValue {
   addPlayer: (player: Omit<Player, "id">) => Promise<void>;
   updatePlayer: (player: Player) => Promise<void>;
   deletePlayer: (id: string) => Promise<void>;
+  deletePlayers: (ids: string[]) => Promise<void>;
   attendance: string[];
   toggleAttendance: (id: string) => void;
   selectAllAttendance: () => void;
@@ -426,24 +426,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .eq("id", player.id);
 
     if (!error) {
+      const normalizedPlayer = normalizePlayer(player);
       setPlayers(currentPlayers => {
-        const normalizedPlayer = normalizePlayer(player);
         return currentPlayers.map((p) => (p.id === player.id ? normalizedPlayer : p));
+      });
+
+      setDraftResult((currentDraft) => {
+        if (!currentDraft) return null;
+
+        const updateDraftTeam = (team: DraftResult["teamA"]) =>
+          team.map((draftPlayer) => {
+            if (draftPlayer.id !== player.id) return draftPlayer;
+
+            return {
+              ...normalizedPlayer,
+              assignedPosition: draftPlayer.assignedPosition,
+              effectiveRating:
+                getPositionRating(normalizedPlayer, draftPlayer.assignedPosition) ||
+                getOverallRating(normalizedPlayer),
+            };
+          });
+
+        const teamA = updateDraftTeam(currentDraft.teamA);
+        const teamB = updateDraftTeam(currentDraft.teamB);
+        const calculateOverallPower = (team: DraftResult["teamA"]) => {
+          if (team.length === 0) return 0;
+          const total = team.reduce((sum, item) => sum + getOverallRating(item), 0);
+          return Math.round((total / team.length) * 10) / 10;
+        };
+
+        return {
+          teamA,
+          teamB,
+          teamAPower:
+            draftMode === "overall" ? calculateOverallPower(teamA) : calculateTeamPower(teamA),
+          teamBPower:
+            draftMode === "overall" ? calculateOverallPower(teamB) : calculateTeamPower(teamB),
+        };
       });
     } else {
       throw new Error(error.message);
     }
-  }, [setPlayers]);
+  }, [draftMode, setDraftResult, setPlayers]);
 
-  // OYUNCU SİLME (DB Delete)
-  const deletePlayer = useCallback(async (id: string) => {
-    const { error } = await supabase.from("players").delete().eq("id", id);
+  // OYUNCU SİLME (tek veya toplu DB Delete)
+  const deletePlayers = useCallback(async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids)).filter(Boolean);
+    if (uniqueIds.length === 0) return;
 
-    if (!error) {
-      setPlayers((prev) => prev.filter((p) => p.id !== id));
-      setAttendance((prev) => prev.filter((pid) => pid !== id));
-    }
-  }, [setPlayers, setAttendance]);
+    const { error } = await supabase.from("players").delete().in("id", uniqueIds);
+    if (error) throw new Error(error.message);
+
+    const deletedIds = new Set(uniqueIds);
+    setPlayers((prev) => prev.filter((player) => !deletedIds.has(player.id)));
+    setAttendance((prev) => prev.filter((playerId) => !deletedIds.has(playerId)));
+    setDraftResult((currentDraft) => {
+      if (!currentDraft) return null;
+      const containsDeletedPlayer = [...currentDraft.teamA, ...currentDraft.teamB].some(
+        (player) => deletedIds.has(player.id)
+      );
+      return containsDeletedPlayer ? null : currentDraft;
+    });
+  }, [setPlayers, setAttendance, setDraftResult]);
+
+  const deletePlayer = useCallback(
+    async (id: string) => deletePlayers([id]),
+    [deletePlayers]
+  );
 
   const toggleAttendance = useCallback((id: string) => {
     setAttendance((prev) =>
@@ -481,11 +530,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (attending.length === 0) return;
 
     const randomized = shuffleArray(attending);
-    const result = generateBalancedTeams(randomized, teamConfig);
+    const result = generateBalancedTeams(randomized, teamConfig, draftMode, {
+      previousDraft: draftResult,
+    });
 
     setDraftResult({ ...result });
     setCurrentStepState("squad");
-  }, [players, attendance, teamConfig, setDraftResult, setCurrentStepState]);
+  }, [players, attendance, teamConfig, draftMode, draftResult, setDraftResult, setCurrentStepState]);
 
   const swapDraftPlayers = useCallback(
     (playerIdA: string, playerIdB: string) => {
@@ -506,6 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addPlayer,
       updatePlayer,
       deletePlayer,
+      deletePlayers,
       attendance,
       toggleAttendance,
       selectAllAttendance,
@@ -537,6 +589,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addPlayer,
       updatePlayer,
       deletePlayer,
+      deletePlayers,
       attendance,
       toggleAttendance,
       selectAllAttendance,

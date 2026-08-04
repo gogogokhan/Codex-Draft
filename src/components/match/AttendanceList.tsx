@@ -8,9 +8,12 @@ import {
   ArrowRight,
   Zap,
   Shield,
+  Shuffle,
 } from "lucide-react";
 import { PlayerCard } from "@/components/players/PlayerCard";
 import { useApp } from "@/context/AppContext";
+import { analyzeFormationCompatibility } from "@/lib/draftEngine";
+import { POSITION_LABELS } from "@/lib/positions";
 
 export function AttendanceList() {
   const {
@@ -22,9 +25,14 @@ export function AttendanceList() {
     setActiveTab,
     draftMode,
     setDraftMode,
+    draftResult,
+    generateDraft,
   } = useApp();
 
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [requiresFormationConfirmation, setRequiresFormationConfirmation] = useState(false);
+  const [hasBlockingFormationIssue, setHasBlockingFormationIssue] = useState(false);
+  const [isRegenerateConfirmOpen, setIsRegenerateConfirmOpen] = useState(false);
 
   const teamSize = teamConfig?.teamSize || 0;
   const required = teamSize ? teamSize * 2 : 0;
@@ -33,6 +41,27 @@ export function AttendanceList() {
     topPlayerIds.length > 0 && topPlayerIds.every((playerId) => attendance.includes(playerId));
   const isEnough = teamSize ? attendance.length === required : false;
   const missingCount = teamSize ? required - attendance.length : 0;
+  const draftModeDescription =
+    draftMode === "overall"
+      ? "Takımları toplam OVR gücüne göre dengeler"
+      : draftMode === "positional"
+      ? "Tüm mevki ratinglerini ve takım bloklarını birlikte dengeler"
+      : "Rating dengesi gözetmeden oynanabilir rastgele takımlar oluşturur";
+  const previousDraftPlayerIds = draftResult
+    ? [...draftResult.teamA, ...draftResult.teamB].map((player) => player.id)
+    : [];
+  const hasSameDraftSquad =
+    previousDraftPlayerIds.length === attendance.length &&
+    previousDraftPlayerIds.every((playerId) => attendance.includes(playerId));
+
+  const requestTeamGeneration = () => {
+    if (draftResult && hasSameDraftSquad) {
+      setIsRegenerateConfirmOpen(true);
+      return;
+    }
+
+    generateDraft();
+  };
 
   const handlePlayerClick = (playerId: string) => {
     if (!teamSize) {
@@ -78,7 +107,40 @@ export function AttendanceList() {
 
   const handleGenerateTeams = () => {
     if (!isEnough) return;
-    if (setActiveTab) setActiveTab("squad");
+    const attendingPlayers = players.filter((player) => attendance.includes(player.id));
+    const issues = analyzeFormationCompatibility(attendingPlayers, teamConfig);
+
+    if (issues.length > 0) {
+      const details = issues.map((issue) => {
+        const label = POSITION_LABELS[issue.position];
+        if (issue.blocking) {
+          return `${issue.playerCount} ana mevkisi ${label} olan oyuncu için yalnızca ${issue.availableSlots} kontenjan var. Ana kaleciler farklı mevkide oynatılamaz.`;
+        }
+        return `${issue.playerCount} ana mevkisi ${label} olan oyuncu var; tüm kayıtlı alternatifler değerlendirildiğinde en az ${issue.overflowCount} oyuncu kayıtlı mevkileri dışında oynayacak.`;
+      });
+      setWarningMessage(details.join(" "));
+      const hasBlockingIssue = issues.some((issue) => issue.blocking);
+      setHasBlockingFormationIssue(hasBlockingIssue);
+      setRequiresFormationConfirmation(!hasBlockingIssue);
+      return;
+    }
+
+    setWarningMessage(null);
+    setRequiresFormationConfirmation(false);
+    setHasBlockingFormationIssue(false);
+    requestTeamGeneration();
+  };
+
+  const handleGenerateDespiteWarning = () => {
+    setWarningMessage(null);
+    setRequiresFormationConfirmation(false);
+    setHasBlockingFormationIssue(false);
+    requestTeamGeneration();
+  };
+
+  const handleConfirmRegenerate = () => {
+    setIsRegenerateConfirmOpen(false);
+    generateDraft();
   };
 
   return (
@@ -112,9 +174,31 @@ export function AttendanceList() {
       </div>
 
       {warningMessage && (
-        <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-500/15 border border-amber-500/40 px-4 py-2.5 text-xs font-bold text-amber-300 animate-pulse">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-          <span>{warningMessage}</span>
+        <div className="mb-3 rounded-xl bg-amber-500/15 border border-amber-500/40 px-4 py-3 text-xs font-bold text-amber-300">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+            <span>{warningMessage}</span>
+          </div>
+          {(requiresFormationConfirmation || hasBlockingFormationIssue) && (
+            <div className="mt-3 flex flex-wrap gap-2 pl-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab("settings")}
+                className="rounded-lg border border-amber-500/40 bg-zinc-900 px-3 py-2 text-amber-200 transition hover:bg-zinc-800"
+              >
+                Formasyonu Düzenle
+              </button>
+              {requiresFormationConfirmation && (
+                <button
+                  type="button"
+                  onClick={handleGenerateDespiteWarning}
+                  className="rounded-lg bg-amber-400 px-3 py-2 text-black transition hover:bg-amber-300"
+                >
+                  Yine de Oluştur
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -126,7 +210,7 @@ export function AttendanceList() {
           </div>
           <div>
             <h4 className="text-xs font-bold text-zinc-200">Dengeleme Kriteri</h4>
-            <p className="text-[11px] text-zinc-400">Takımların hangi metoda göre kurulacağını seçin</p>
+            <p className="text-[11px] text-zinc-400">{draftModeDescription}</p>
           </div>
         </div>
 
@@ -155,6 +239,19 @@ export function AttendanceList() {
           >
             <Shield className="h-3.5 w-3.5" />
             <span>Mevki Dağılımlı</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDraftMode("random")}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition-all ${
+              draftMode === "random"
+                ? "bg-cyan-400 text-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+                : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800"
+            }`}
+          >
+            <Shuffle className="h-3.5 w-3.5" />
+            <span>Rastgele Ata</span>
           </button>
         </div>
       </div>
@@ -221,6 +318,40 @@ export function AttendanceList() {
           />
         ))}
       </div>
+
+      {isRegenerateConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-3xl border border-cyan-400/35 bg-gradient-to-br from-[#08244a] via-[#061127] to-[#020617] p-6 text-center text-white shadow-[0_0_28px_rgba(6,182,212,0.22),0_0_45px_rgba(212,175,55,0.12)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-red-400/70 bg-red-500/15 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.45)]">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+
+            <h3 className="mb-2 text-[15px] font-black uppercase tracking-wide text-[#F5D77F] drop-shadow-[0_1px_5px_rgba(212,175,55,0.35)] sm:whitespace-nowrap sm:text-base sm:tracking-wider">
+              Takımlar Yeniden Oluşturulsun mu?
+            </h3>
+            <p className="mb-6 text-xs font-medium leading-relaxed text-cyan-100/65">
+              Bu oyuncu kadrosuyla daha önce takım oluşturdunuz. Devam ederseniz mevcut takım dağılımı değiştirilecek ve takımlar yeniden dengelenecektir.
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsRegenerateConfirmOpen(false)}
+                className="flex-1 cursor-pointer rounded-xl border border-cyan-500/30 bg-[#081a35] py-3 text-xs font-bold uppercase tracking-wider text-cyan-100/80 transition hover:border-cyan-400/60 hover:bg-[#0b2850] hover:text-white"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRegenerate}
+                className="flex-1 cursor-pointer rounded-xl border border-[#F5D77F]/80 bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#D4AF37] py-3 text-xs font-black uppercase tracking-wider text-[#061127] shadow-[0_0_18px_rgba(212,175,55,0.35)] transition hover:brightness-110"
+              >
+                Yeniden Oluştur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

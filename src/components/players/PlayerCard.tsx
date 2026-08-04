@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { User, Trash2, AlertTriangle, Check } from "lucide-react";
 import { formatPlayerName } from "@/lib/playerName";
+import { POSITION_LABELS, isPosition } from "@/lib/positions";
 
 interface PositionItem {
   code: string;
@@ -63,6 +64,11 @@ const extractPosCode = (val: any): string => {
   }
   
   return "MID";
+};
+
+const getPositionLabel = (value: unknown): string => {
+  const code = extractPosCode(value);
+  return isPosition(code) ? POSITION_LABELS[code] : code;
 };
 
 export function PlayerCard({
@@ -255,7 +261,7 @@ export function PlayerCard({
           {overallRating}
         </span>
         <span className="font-black block text-[#D4AF37] tracking-wider leading-none mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-[13px]">
-          {extractPosCode(mainPosCode)}
+          {getPositionLabel(mainPosCode)}
         </span>
       </div>
 
@@ -284,7 +290,7 @@ export function PlayerCard({
       <div className="absolute top-[72.5%] inset-x-[15%] z-20 text-center pointer-events-none">
         <div className={`grid ${gridColsClass} text-center font-black text-[#D4AF37] tracking-wider text-[12px]`}>
           {posList.map((item, idx) => (
-            <span key={idx}>{extractPosCode(item.code)}</span>
+            <span key={idx}>{getPositionLabel(item.code)}</span>
           ))}
         </div>
       </div>

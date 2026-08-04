@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDown, Trash2, AlertTriangle, Plus } from 'lucide-react';
+import { ArrowUpDown, Trash2, AlertTriangle, Plus, ListChecks, CheckCheck, X } from 'lucide-react';
 import { PlayerCard } from './PlayerCard';
 
 const SORT_OPTIONS = [
@@ -10,7 +10,7 @@ const SORT_OPTIONS = [
   { value: 'rating-asc', label: 'Reyting (En Düşük)' },
   { value: 'name-asc', label: 'İsim (A ➔ Z)' },
   { value: 'name-desc', label: 'İsim (Z ➔ A)' },
-  { value: 'pos-asc', label: 'Mevki (GK ➔ FWD)' },
+  { value: 'pos-asc', label: 'Mevki (KL ➔ FV)' },
   { value: 'pos-rating', label: 'Mevki, Sonra Reyting' },
   { value: 'rating-pos', label: 'Reyting, Sonra Mevki' },
 ];
@@ -21,6 +21,7 @@ interface PlayerPoolProps {
   onClearAllPlayers?: () => void;
   onEditPlayer?: (player: any) => void;
   onDeletePlayer?: (playerId: string) => void;
+  onDeletePlayers?: (playerIds: string[]) => Promise<void>;
 }
 
 // Mevki Sıralama Katmanı (GK: 1, DEF: 2, MID: 3, FWD: 4)
@@ -155,9 +156,15 @@ export function PlayerPool({
   onClearAllPlayers,
   onEditPlayer,
   onDeletePlayer,
+  onDeletePlayers,
 }: PlayerPoolProps) {
   const [sortOption, setSortOption] = useState<string>('newest');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
 
   const getPlayerRating = (player: any, positionCode?: string): number => {
     const resolvedPosition = positionCode ?? getPrimaryPositionCode(player);
@@ -260,6 +267,46 @@ export function PlayerPool({
     setIsDeleteModalOpen(false);
   };
 
+  const selectedPlayers = players.filter((player) => selectedPlayerIds.has(player.id));
+  const areAllPlayersSelected =
+    players.length > 0 && selectedPlayerIds.size === players.length;
+  const selectedPlayerNames = selectedPlayers.map((player) => player.name || player.fullName);
+  const selectedPlayerSummary = selectedPlayerNames.length <= 3
+    ? selectedPlayerNames.join(', ')
+    : `${selectedPlayerNames.slice(0, 3).join(', ')} ve ${selectedPlayerNames.length - 3} oyuncu daha`;
+
+  const togglePlayerSelection = (playerId: string) => {
+    setSelectedPlayerIds((current) => {
+      const next = new Set(current);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false);
+    setSelectedPlayerIds(new Set());
+    setBulkDeleteError(null);
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (!onDeletePlayers || selectedPlayerIds.size === 0) return;
+    setIsBulkDeleting(true);
+    setBulkDeleteError(null);
+    try {
+      await onDeletePlayers(Array.from(selectedPlayerIds));
+      setIsBulkDeleteModalOpen(false);
+      exitSelectionMode();
+    } catch (error) {
+      setBulkDeleteError(
+        error instanceof Error ? error.message : 'Oyuncular silinirken bir hata oluştu.'
+      );
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="w-full space-y-6">
       {/* ÜST BAR */}
@@ -292,24 +339,80 @@ export function PlayerPool({
             <div className="absolute right-3 pointer-events-none text-cyan-400/60 text-[10px]">▼</div>
           </div>
 
-          {/* OYUNCU EKLE BUTONU */}
-          <button
-            type="button"
-            onClick={onAddPlayerClick}
-            className="px-4 py-2.5 bg-[#0a2332]/80 hover:bg-[#0e3045] border border-[#00d2ff]/50 hover:border-[#00d2ff] rounded-2xl text-xs font-bold text-[#00d2ff] uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.2)] active:scale-95"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" /> Oyuncu Ekle
-          </button>
+          {!isSelectionMode ? (
+            <>
+              <button
+                type="button"
+                onClick={onAddPlayerClick}
+                className="px-4 py-2.5 bg-[#0a2332]/80 hover:bg-[#0e3045] border border-[#00d2ff]/50 hover:border-[#00d2ff] rounded-2xl text-xs font-bold text-[#00d2ff] uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.2)] active:scale-95"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" /> Oyuncu Ekle
+              </button>
 
-          {/* TÜMÜNÜ SİL BUTONU */}
-          {players.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900 border border-red-500/40 hover:border-red-400 rounded-xl text-xs font-black text-red-200 uppercase tracking-wider flex items-center gap-2 transition shadow-[0_0_15px_rgba(239,68,68,0.15)] cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4 text-red-400" /> Tümünü Sil
-            </button>
+              {players.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsSelectionMode(true)}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-cyan-200 transition hover:border-cyan-400 hover:bg-cyan-900/60"
+                >
+                  <ListChecks className="h-4 w-4 text-cyan-400" /> Toplu Seçim
+                </button>
+              )}
+
+              {players.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900 border border-red-500/40 hover:border-red-400 rounded-xl text-xs font-black text-red-200 uppercase tracking-wider flex items-center gap-2 transition shadow-[0_0_15px_rgba(239,68,68,0.15)] cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-red-400" /> Tümünü Sil
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="rounded-xl border border-cyan-500/30 bg-cyan-950/40 px-3 py-2 text-xs font-black text-cyan-200">
+                {selectedPlayerIds.size} Oyuncu Seçildi
+              </span>
+              <button
+                type="button"
+                aria-pressed={areAllPlayersSelected}
+                onClick={() =>
+                  setSelectedPlayerIds(
+                    areAllPlayersSelected
+                      ? new Set()
+                      : new Set(players.map((player) => player.id))
+                  )
+                }
+                className={`flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                  areAllPlayersSelected
+                    ? "border-cyan-300 bg-cyan-400 text-[#061127] shadow-[0_0_14px_rgba(34,211,238,0.4)] hover:bg-cyan-300"
+                    : "border-cyan-500/30 bg-[#081a35] text-cyan-200 hover:border-cyan-400/70"
+                }`}
+              >
+                {areAllPlayersSelected ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <CheckCheck className="h-4 w-4" />
+                )}
+                {areAllPlayersSelected ? "Seçimi Temizle" : "Tümünü Seç"}
+              </button>
+              <button
+                type="button"
+                disabled={selectedPlayerIds.size === 0}
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-red-500/50 bg-red-950/60 px-3 py-2.5 text-xs font-black uppercase text-red-200 transition hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-4 w-4 text-red-400" /> Seçilenleri Sil
+              </button>
+              <button
+                type="button"
+                onClick={exitSelectionMode}
+                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-xs font-bold text-zinc-300 transition hover:bg-zinc-800"
+              >
+                <X className="h-4 w-4" /> Çık
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -325,7 +428,9 @@ export function PlayerPool({
             <div
               key={playerItem.id}
               onClick={() => {
-                if (onEditPlayer) {
+                if (isSelectionMode) {
+                  togglePlayerSelection(playerItem.id);
+                } else if (onEditPlayer) {
                   onEditPlayer(playerItem);
                 }
               }}
@@ -333,18 +438,28 @@ export function PlayerPool({
             >
               <PlayerCard
                 player={playerItem}
-                onCardClick={() => {
-                  if (onEditPlayer) {
-                    onEditPlayer(playerItem);
-                  }
-                }}
+                selectable={isSelectionMode}
+                selected={selectedPlayerIds.has(playerItem.id)}
+                isAdmin={!isSelectionMode}
+                onClick={
+                  isSelectionMode
+                    ? () => togglePlayerSelection(playerItem.id)
+                    : undefined
+                }
+                onCardClick={
+                  !isSelectionMode
+                    ? () => {
+                        if (onEditPlayer) onEditPlayer(playerItem);
+                      }
+                    : undefined
+                }
                 onEdit={
-                  onEditPlayer
+                  !isSelectionMode && onEditPlayer
                     ? () => onEditPlayer(playerItem)
                     : undefined
                 }
                 onDelete={
-                  onDeletePlayer
+                  !isSelectionMode && onDeletePlayer
                     ? (e?: any) => {
                         if (e && typeof e.stopPropagation === 'function') {
                           e.stopPropagation();
@@ -356,6 +471,51 @@ export function PlayerPool({
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-3xl border border-red-500/35 bg-gradient-to-br from-[#15102d] via-[#061127] to-[#020617] p-6 text-center text-white shadow-[0_0_35px_rgba(239,68,68,0.25),0_0_50px_rgba(6,182,212,0.12)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-red-400/60 bg-red-500/15 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.4)]">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+
+            <h3 className="mb-2 text-base font-black uppercase tracking-wider text-red-200">
+              {selectedPlayerIds.size} Oyuncu Silinsin mi?
+            </h3>
+            <p className="text-xs font-medium leading-relaxed text-zinc-400">
+              <span className="font-bold text-cyan-100">{selectedPlayerSummary}</span> kalıcı olarak silinecek. Bu işlem geri alınamaz.
+            </p>
+
+            {bulkDeleteError && (
+              <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-300">
+                {bulkDeleteError}
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={() => {
+                  setIsBulkDeleteModalOpen(false);
+                  setBulkDeleteError(null);
+                }}
+                className="flex-1 cursor-pointer rounded-xl border border-cyan-500/25 bg-[#081a35] py-3 text-xs font-bold uppercase tracking-wider text-cyan-100/80 transition hover:bg-[#0b2850] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleConfirmBulkDelete}
+                className="flex-1 cursor-pointer rounded-xl border border-red-400/70 bg-red-600 py-3 text-xs font-black uppercase tracking-wider text-white shadow-[0_0_16px_rgba(239,68,68,0.35)] transition hover:bg-red-500 disabled:cursor-wait disabled:opacity-60"
+              >
+                {isBulkDeleting ? 'Siliniyor...' : `${selectedPlayerIds.size} Oyuncuyu Sil`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

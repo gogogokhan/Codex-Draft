@@ -237,14 +237,14 @@ export function TeamConfigPanel() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {/* KALECİ (SABİT 1) */}
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-2.5 text-center flex flex-col justify-between">
-            <span className="text-[11px] text-zinc-400 font-medium">Kaleci</span>
+            <span className="text-[11px] text-zinc-400 font-medium">KL</span>
             <div className="text-sm font-black text-cyan-400 my-1">1</div>
             <span className="text-[10px] text-zinc-500">Sabit</span>
           </div>
 
           {/* DEFANS */}
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-2.5 text-center flex flex-col justify-between">
-            <span className="text-[11px] text-zinc-400 font-medium">Defans</span>
+            <span className="text-[11px] text-zinc-400 font-medium">DEF</span>
             <div className="flex items-center justify-center gap-2 my-1">
               <button
                 type="button"
@@ -283,7 +283,7 @@ export function TeamConfigPanel() {
 
           {/* ORTA SAHA */}
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-2.5 text-center flex flex-col justify-between">
-            <span className="text-[11px] text-zinc-400 font-medium">Orta Saha</span>
+            <span className="text-[11px] text-zinc-400 font-medium">ORT</span>
             <div className="flex items-center justify-center gap-2 my-1">
               <button
                 type="button"
@@ -322,7 +322,7 @@ export function TeamConfigPanel() {
 
           {/* FORVET */}
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-2.5 text-center flex flex-col justify-between">
-            <span className="text-[11px] text-zinc-400 font-medium">Forvet</span>
+            <span className="text-[11px] text-zinc-400 font-medium">FV</span>
             <div className="flex items-center justify-center gap-2 my-1">
               <button
                 type="button"

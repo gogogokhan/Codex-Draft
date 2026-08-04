@@ -1,4 +1,4 @@
-import { AssignedPlayer, Player, Position } from "@/types";
+import type { AssignedPlayer, Player, Position } from "@/types";
 import { getMainPosition, getOverallRating as getCanonicalOverallRating, getPositionRating } from "@/lib/positions";
 
 const FIELD_POSITIONS: Position[] = ["DEF", "MID", "FWD"];

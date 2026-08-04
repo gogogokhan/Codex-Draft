@@ -1,4 +1,5 @@
 export type Position = "GK" | "DEF" | "MID" | "FWD";
+export type DraftMode = "overall" | "positional" | "random";
 export type UserRole = "ADMIN" | "USER";
 export type WizardStep = "players" | "match" | "draft";
 

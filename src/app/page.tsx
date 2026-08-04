@@ -12,7 +12,7 @@ import { PlayerModal } from "@/components/players/PlayerModal";
 import { useApp } from "@/context/AppContext";
 
 export default function HomePage() {
-  const { currentStep, players, addPlayer, updatePlayer, deletePlayer } = useApp();
+  const { currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
 
@@ -37,16 +37,16 @@ export default function HomePage() {
   };
 
   const handleClearAllPlayers = async () => {
-    for (const player of players) {
-      await deletePlayer(player.id);
-    }
+    await deletePlayers(players.map((player) => player.id));
   };
 
   return (
     <div className="min-h-screen bg-zinc-950">
       <Header onOpenAddPlayerModal={handleOpenAddModal} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${
+        currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"
+      }`}>
         <AuthGuard>
           {/* OYUNCU HAVUZU */}
           {currentStep === "pool" && (
@@ -55,6 +55,7 @@ export default function HomePage() {
               onAddPlayerClick={handleOpenAddModal}
               onEditPlayer={handleOpenEditModal}
               onDeletePlayer={deletePlayer}
+              onDeletePlayers={deletePlayers}
               onClearAllPlayers={handleClearAllPlayers}
             />
           )}
@@ -68,7 +69,7 @@ export default function HomePage() {
           {/* MAÇ KURUCU - 3. ADIM: Kadro & Saha + WhatsApp Dışa Aktar */}
           {currentStep === "squad" && (
             <div className="space-y-6">
-              <PitchView />
+              <PitchView onPlayerClick={handleOpenEditModal} />
               <WhatsAppExport />
             </div>
           )}

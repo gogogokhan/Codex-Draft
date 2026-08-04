@@ -170,19 +170,11 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
               <button
                 type="button"
-                onClick={() => {
-                  if (!players || players.length === 0) {
-                    setCurrentStep("pool");
-                    setWarningMessage("Maç Kurucusuna geçebilmek ve ayarlara başlamak için önce en az 1 oyuncu eklemelisiniz!");
-                    return;
-                  }
-                  setWarningMessage(null);
-                  setCurrentStep("squad");
-                }}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                disabled
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                   currentStep === "squad"
-                    ? "bg-cyan-400 text-black font-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
-                    : "text-zinc-400 bg-zinc-900/60 border border-zinc-800 hover:text-zinc-200"
+                    ? "cursor-default bg-cyan-400 text-black font-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+                    : "cursor-not-allowed border border-zinc-800 bg-zinc-900/40 text-zinc-600"
                 }`}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />

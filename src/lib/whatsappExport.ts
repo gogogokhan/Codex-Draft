@@ -1,4 +1,5 @@
 import { groupByPosition } from "@/lib/ratings";
+import { POSITION_LABELS } from "@/lib/positions";
 import { AssignedPlayer, DraftResult, Position, TeamConfig } from "@/types";
 
 const POSITION_EMOJI: Record<Position, string> = {
@@ -16,7 +17,7 @@ function formatPositionGroup(
   const list = players
     .map((p) => `${p.name} (${p.effectiveRating})`)
     .join(", ");
-  return `${POSITION_EMOJI[position]} ${position} — ${list}`;
+  return `${POSITION_EMOJI[position]} ${POSITION_LABELS[position]} — ${list}`;
 }
 
 function formatTeam(name: string, power: number, players: AssignedPlayer[]): string {

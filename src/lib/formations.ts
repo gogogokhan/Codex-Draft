@@ -1,4 +1,4 @@
-import { FormationSlots } from "@/types";
+import type { FormationSlots } from "@/types";
 
 export interface FormationConfig {
   formation: string;
