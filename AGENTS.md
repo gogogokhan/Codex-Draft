@@ -1,6 +1,6 @@
 # Proje Talimatları
 
-Bu projede çalışan her AI asistanı, herhangi bir görev üzerinde çalışmaya başlamadan önce `ai/AI_RULES.md` dosyasını baştan sona okumalı, anlamalı ve buradaki kuralları uygulamalıdır.
+Bu projede çalışan her AI asistanı, proje üzerinde çalışmaya başladığında `ai/AI_RULES.md` dosyasını bir kez baştan sona okumalı, anlamalı ve oturum boyunca buradaki kuralları uygulamalıdır. Dosya yalnızca değiştirildiğinde, bağlam sıfırlandığında veya kullanıcı `Selamün Aleyküm` ya da `Selamun Aleykum` yazdığında yeniden okunmalıdır.
 
 Kullanıcı `Selamün Aleyküm` veya `Selamun Aleykum` yazdığında:
 
