@@ -402,6 +402,8 @@ export function PlayerModal({
                 onChange={handleRatingChange}
                 onBlur={handleRatingBlur}
                 placeholder="OVR"
+                title="Bu mevkideki oyuncu ratingini girin (50-99)."
+                aria-label="Bu mevkideki oyuncu ratingini girin (50-99)."
                 className="w-20 px-3 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none focus:border-[#00d2ff] transition"
               />
             </div>
@@ -460,6 +462,8 @@ export function PlayerModal({
                         onChange={(e) => handleUpdatePositionRating(item.code, e.target.value)}
                         onBlur={() => handlePositionRatingBlur(item.code, item.rating)}
                         placeholder="OVR"
+                        title="Bu mevkideki oyuncu ratingini girin (50-99)."
+                        aria-label="Bu mevkideki oyuncu ratingini girin (50-99)."
                         className="w-14 px-2 py-1 bg-[#040a1b] border border-[#00d2ff]/40 rounded-lg text-xs font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none focus:border-white transition"
                       />
                       <button
