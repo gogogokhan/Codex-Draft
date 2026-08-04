@@ -76,6 +76,7 @@ interface AppContextValue {
   selectGroup: (groupId: string) => void;
   refreshGroupMembers: () => Promise<void>;
   updateGroupMemberRole: (userId: string, role: Exclude<GroupRole, "owner">) => Promise<AuthResponse>;
+  deleteEmptyGroup: () => Promise<AuthResponse>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -512,13 +513,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const createGroup = useCallback(async (name: string): Promise<AuthResponse> => {
     const cleanName = name.trim();
     if (cleanName.length < 2) return { success: false, error: "Grup adı en az 2 karakter olmalıdır." };
+    if (groups.some((group) => group.name.trim().toLocaleLowerCase("tr-TR") === cleanName.toLocaleLowerCase("tr-TR"))) {
+      return { success: false, error: "Bu isimde bir gruba zaten üyesiniz. Lütfen farklı bir grup adı kullanın." };
+    }
     const { data, error } = await supabase.rpc("create_group", { group_name: cleanName });
     if (error) return { success: false, error: error.message };
     const createdGroup = data as Group;
     await fetchGroups();
     if (createdGroup?.id) setActiveGroupId(createdGroup.id);
     return { success: true };
-  }, [fetchGroups, setActiveGroupId]);
+  }, [groups, fetchGroups, setActiveGroupId]);
 
   const joinGroup = useCallback(async (code: string): Promise<AuthResponse> => {
     const cleanCode = code.trim().toUpperCase();
@@ -553,6 +557,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refreshGroupMembers();
     return { success: true };
   }, [activeGroupId, refreshGroupMembers]);
+
+  const deleteEmptyGroup = useCallback(async (): Promise<AuthResponse> => {
+    if (!activeGroupId) return { success: false, error: "Aktif grup bulunamadı." };
+    const { error } = await supabase.rpc("delete_empty_group", { target_group_id: activeGroupId });
+    if (error) return { success: false, error: error.message };
+    setAttendance([]);
+    setDraftResult(null);
+    setCurrentStepState("pool");
+    await fetchGroups();
+    return { success: true };
+  }, [activeGroupId, fetchGroups, setAttendance, setDraftResult, setCurrentStepState]);
 
   // OYUNCU EKLEME (DB Insert)
   const addPlayer = useCallback(
@@ -776,6 +791,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
+      deleteEmptyGroup,
     }),
     [
       players,
@@ -815,6 +831,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
+      deleteEmptyGroup,
     ]
   );
 
