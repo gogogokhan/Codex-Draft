@@ -10,7 +10,7 @@ import { WhatsAppExport } from "@/components/export/WhatsAppExport";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PlayerModal } from "@/components/players/PlayerModal";
 import { useApp } from "@/context/AppContext";
-import { GroupOnboarding } from "@/components/groups/GroupOnboarding";
+import { CommunityHub } from "@/components/community/CommunityHub";
 
 export default function HomePage() {
   const {
@@ -54,8 +54,8 @@ export default function HomePage() {
         <AuthGuard>
           {isGroupsLoading ? (
             <div className="py-20 text-center text-sm font-bold text-zinc-400">Gruplar yükleniyor...</div>
-          ) : !activeGroup ? (
-            <GroupOnboarding />
+          ) : currentStep === "community" || !activeGroup ? (
+            <CommunityHub />
           ) : (
           <>
           {/* OYUNCU HAVUZU */}

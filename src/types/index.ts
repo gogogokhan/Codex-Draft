@@ -24,6 +24,8 @@ export interface Group {
   owner_id: string;
   invite_code: string;
   created_at: string;
+  player_count?: number;
+  member_count?: number;
 }
 
 export interface GroupMembership {

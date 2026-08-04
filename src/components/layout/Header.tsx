@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus } from "lucide-react";
+import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus, UsersRound } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/auth/AuthModal";
-import { GroupMenu } from "@/components/groups/GroupMenu";
 
 interface HeaderProps {
   onOpenAddPlayerModal?: () => void;
@@ -17,8 +16,9 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
   } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
+  const isCommunity = currentStep === "community";
   const isPool = currentStep === "pool";
-  const isBuilder = !isPool;
+  const isBuilder = currentStep === "settings" || currentStep === "attendance" || currentStep === "squad";
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Kullanıcı";
 
@@ -50,6 +50,16 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
           {/* 2. ANA MOD SEÇİMİ */}
           <div className="flex items-center gap-2 rounded-2xl bg-zinc-900/90 border border-zinc-800 p-1.5 shadow-inner">
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => { setWarningMessage(null); setCurrentStep("community"); }}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-300 ${isCommunity ? "border-violet-400/40 bg-violet-400/15 text-violet-200 shadow-[0_0_15px_rgba(167,139,250,0.22)]" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}
+              >
+                <UsersRound className="h-4 w-4 text-violet-300" />
+                <span className="hidden lg:inline">Topluluk</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -82,8 +92,12 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
           {/* 3. SAĞ ALAN */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {isAuthenticated && activeGroup && <GroupMenu />}
-            {onOpenAddPlayerModal && activeGroup && canEditPlayers && (
+            {isAuthenticated && activeGroup && (
+              <button type="button" onClick={() => setCurrentStep("community")} className="hidden max-w-[150px] items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-400/10 px-3 py-1.5 text-xs font-bold text-violet-200 transition hover:bg-violet-400/20 sm:flex">
+                <UsersRound className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{activeGroup.name}</span>
+              </button>
+            )}
+            {onOpenAddPlayerModal && activeGroup && canEditPlayers && isPool && (
               <button
                 type="button"
                 onClick={onOpenAddPlayerModal}

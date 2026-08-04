@@ -76,7 +76,8 @@ interface AppContextValue {
   selectGroup: (groupId: string) => void;
   refreshGroupMembers: () => Promise<void>;
   updateGroupMemberRole: (userId: string, role: Exclude<GroupRole, "owner">) => Promise<AuthResponse>;
-  deleteEmptyGroup: () => Promise<AuthResponse>;
+  renameGroup: (name: string) => Promise<AuthResponse>;
+  deleteGroup: () => Promise<AuthResponse>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -289,15 +290,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
       throw new Error(error.message);
     }
 
-    const nextGroups: Group[] = [];
+    const groupMap = new Map<string, Group>();
     const nextRoles: Record<string, GroupRole> = {};
     for (const row of data ?? []) {
       const rawGroup = Array.isArray(row.groups) ? row.groups[0] : row.groups;
       if (!rawGroup) continue;
       const group = rawGroup as Group;
-      nextGroups.push(group);
+      groupMap.set(group.id, group);
       nextRoles[group.id] = row.role as GroupRole;
     }
+
+    const baseGroups = Array.from(groupMap.values());
+    const groupIds = baseGroups.map((group) => group.id);
+    const playerCounts: Record<string, number> = {};
+    const memberCounts: Record<string, number> = {};
+
+    if (groupIds.length > 0) {
+      const [{ data: playerRows }, { data: memberRows }] = await Promise.all([
+        supabase.from("players").select("group_id").in("group_id", groupIds),
+        supabase.from("group_members").select("group_id").in("group_id", groupIds),
+      ]);
+      for (const row of playerRows ?? []) {
+        if (row.group_id) playerCounts[row.group_id] = (playerCounts[row.group_id] ?? 0) + 1;
+      }
+      for (const row of memberRows ?? []) {
+        memberCounts[row.group_id] = (memberCounts[row.group_id] ?? 0) + 1;
+      }
+    }
+
+    const nextGroups = baseGroups.map((group) => ({
+      ...group,
+      player_count: playerCounts[group.id] ?? 0,
+      member_count: memberCounts[group.id] ?? 0,
+    }));
 
     setGroups(nextGroups);
     setGroupRoles(nextRoles);
@@ -410,7 +435,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "players", filter: `group_id=eq.${activeGroupId}` },
-        () => fetchPlayers(activeGroupId)
+        () => {
+          fetchPlayers(activeGroupId).catch((error) => console.error("Player refresh error:", error));
+          fetchGroups().catch((error) => console.error("Community stats refresh error:", error));
+        }
       )
       .on(
         "postgres_changes",
@@ -558,9 +586,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [activeGroupId, refreshGroupMembers]);
 
-  const deleteEmptyGroup = useCallback(async (): Promise<AuthResponse> => {
+  const renameGroup = useCallback(async (name: string): Promise<AuthResponse> => {
+    if (!activeGroupId) return { success: false, error: "Aktif topluluk bulunamadı." };
+    const cleanName = name.trim();
+    if (cleanName.length < 2) return { success: false, error: "Topluluk adı en az 2 karakter olmalıdır." };
+    const { error } = await supabase.rpc("rename_group", {
+      target_group_id: activeGroupId,
+      new_name: cleanName,
+    });
+    if (error) return { success: false, error: error.message };
+    await fetchGroups();
+    return { success: true };
+  }, [activeGroupId, fetchGroups]);
+
+  const deleteGroup = useCallback(async (): Promise<AuthResponse> => {
     if (!activeGroupId) return { success: false, error: "Aktif grup bulunamadı." };
-    const { error } = await supabase.rpc("delete_empty_group", { target_group_id: activeGroupId });
+    const { error } = await supabase.rpc("delete_group", { target_group_id: activeGroupId });
     if (error) return { success: false, error: error.message };
     setAttendance([]);
     setDraftResult(null);
@@ -791,7 +832,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
-      deleteEmptyGroup,
+      renameGroup,
+      deleteGroup,
     }),
     [
       players,
@@ -831,7 +873,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
-      deleteEmptyGroup,
+      renameGroup,
+      deleteGroup,
     ]
   );
 
