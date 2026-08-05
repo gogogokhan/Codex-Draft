@@ -76,6 +76,25 @@ test("overall modu, eşit oyuncu sayısıyla mümkün olan en düşük OVR fark�
   assert.equal(result.teamB.filter((item) => item.assignedPosition === "GK").length, 1);
 });
 
+test("overall modu, alternatif mevki bonusu yerine yalnızca ana ratingi kullanır", () => {
+  const players = [
+    player("gk-1", [position("GK", 80, true)]),
+    player("gk-2", [position("GK", 80, true)]),
+    player("versatile", [position("DEF", 80, true), position("MID", 80), position("FWD", 80)]),
+    player("single", [position("DEF", 80, true)]),
+    player("mid-1", [position("MID", 80, true)]),
+    player("mid-2", [position("MID", 80, true)]),
+    player("fwd-1", [position("FWD", 80, true)]),
+    player("fwd-2", [position("FWD", 80, true)]),
+  ];
+  const config = { teamSize: 4, formation: "1-1-1-1", teamAName: "A", teamBName: "B" };
+
+  const result = generateBalancedTeams(players, config, "overall");
+
+  assert.equal(result.teamAPower, 80);
+  assert.equal(result.teamBPower, 80);
+});
+
 test("overall modu, dört ana DEF oyuncusunu iki takıma 2-2 dağıtır", () => {
   const players = [
     player("gk-1", [position("GK", 90, true)]),

@@ -47,6 +47,11 @@ function getPlayerStrength(player: any): number {
   return player ? getOverallRating(player as Player) : 50;
 }
 
+function getMainRatingStrength(player: Player): number {
+  const mainPosition = getMainPosition(player);
+  return getPositionRating(player, mainPosition) || player.overall || 50;
+}
+
 function isGoalkeeperCandidate(player: any): boolean {
   if (!player) return false;
 
@@ -499,7 +504,7 @@ function findBestOverallPartition(
   teamSize: number,
   options: OverallPartitionOptions = {}
 ): [Player[], Player[]] {
-  const strengths = players.map(getPlayerStrength);
+  const strengths = players.map(getMainRatingStrength);
   const totalStrength = strengths.reduce((sum, rating) => sum + rating, 0);
   const mainGoalkeeperCount = players.filter(
     (player) => getPrimaryPosition(player) === "GK"
@@ -737,7 +742,7 @@ function arrangeFixedTeam(players: Player[], perTeamSlots: FormationSlots): Team
 
 function calculateOverallPower(players: Player[]): number {
   if (players.length === 0) return 0;
-  const total = players.reduce((sum, player) => sum + getPlayerStrength(player), 0);
+  const total = players.reduce((sum, player) => sum + getMainRatingStrength(player), 0);
   return Math.round((total / players.length) * 10) / 10;
 }
 

@@ -115,8 +115,8 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
     draftMode === 'overall'
       ? {
           icon: <Zap className="h-5 w-5" />,
-          label: '⚡ Genel Rating (OVR)',
-          description: 'Takımlar toplam OVR gücüne göre dengelenmiştir.',
+          label: '⚡ Ana Rating',
+          description: 'Takımlar kartlarda görünen ana rating değerlerine göre dengelenmiştir.',
         }
       : draftMode === 'positional'
       ? {

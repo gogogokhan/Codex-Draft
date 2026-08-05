@@ -46,7 +46,7 @@ export function AttendanceList() {
   const missingCount = teamSize ? required - attendance.length : 0;
   const draftModeDescription =
     draftMode === "overall"
-      ? "Takımları toplam OVR gücüne göre dengeler"
+      ? "Takımları kartlarda görünen ana rating değerlerine göre dengeler"
       : draftMode === "positional"
       ? "Tüm mevki ratinglerini ve takım bloklarını birlikte dengeler"
       : "Rating dengesi gözetmeden oynanabilir rastgele takımlar oluşturur";
@@ -224,7 +224,7 @@ export function AttendanceList() {
             }`}
           >
             <Zap className="h-3.5 w-3.5" />
-            <span>Genel Rating (OVR)</span>
+            <span>Ana Rating</span>
           </button>
 
           <button
