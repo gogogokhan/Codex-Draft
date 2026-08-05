@@ -7,9 +7,10 @@ import { useApp } from "@/context/AppContext";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  showCloseButton?: boolean;
 }
 
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, showCloseButton = true }: AuthModalProps) {
   const { login, register } = useApp();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
@@ -74,13 +75,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
       <div className="relative w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
         {/* Kapat Butonu */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 text-zinc-400 hover:text-white transition cursor-pointer"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 text-zinc-400 hover:text-white transition cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
 
         {/* Sekme Seçimleri */}
         <div className="mb-6 flex border-b border-zinc-800">
