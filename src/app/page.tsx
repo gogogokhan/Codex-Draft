@@ -15,7 +15,7 @@ import { CommunityHub } from "@/components/community/CommunityHub";
 export default function HomePage() {
   const {
     currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
-    canEditPlayers,
+    canEditPlayers, workspaceMode, activeGroup,
   } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -60,6 +60,7 @@ export default function HomePage() {
           {currentStep === "pool" && (
             <PlayerPool
               players={players}
+              title={workspaceMode === "community" && activeGroup ? `${activeGroup.name} Oyuncu Havuzu` : "Oyuncu Havuzu"}
               onAddPlayerClick={canEditPlayers ? handleOpenAddModal : undefined}
               onEditPlayer={canEditPlayers ? handleOpenEditModal : undefined}
               onDeletePlayer={canEditPlayers ? deletePlayer : undefined}

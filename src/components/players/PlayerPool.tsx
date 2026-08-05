@@ -17,6 +17,7 @@ const SORT_OPTIONS = [
 
 interface PlayerPoolProps {
   players?: any[];
+  title?: string;
   onAddPlayerClick?: () => void;
   onClearAllPlayers?: () => void;
   onEditPlayer?: (player: any) => void;
@@ -152,6 +153,7 @@ const getPositionOrder = (positionCode: string): number => {
 
 export function PlayerPool({
   players = [],
+  title = 'Oyuncu Havuzu',
   onAddPlayerClick,
   onClearAllPlayers,
   onEditPlayer,
@@ -313,7 +315,7 @@ export function PlayerPool({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white uppercase tracking-wider flex items-center gap-2">
-            Oyuncu Havuzu
+            {title}
           </h1>
           <p className="text-xs text-cyan-200/60 font-medium">
             {players.length} oyuncu kayıtlı
