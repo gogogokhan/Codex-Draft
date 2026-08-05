@@ -444,8 +444,54 @@ interface OverallPartitionOptions {
 interface OverallPartitionCandidate {
   selection: number[];
   goalkeeperPenalty: number;
+  formationMismatch: number;
   positionImbalance: number;
   ratingDifference: number;
+}
+
+function getRegisteredFormationMismatch(
+  players: Player[],
+  perTeamSlots: FormationSlots
+): number {
+  const slots = (["GK", "DEF", "MID", "FWD"] as Position[]).flatMap(
+    (position) => Array<Position>(perTeamSlots[position]).fill(position)
+  );
+  const slotOwners = Array<number>(slots.length).fill(-1);
+  const orderedPlayers = [...players].sort((a, b) => {
+    const aCount = a.positions.filter((position) => position.rating > 0).length;
+    const bCount = b.positions.filter((position) => position.rating > 0).length;
+    return aCount - bCount;
+  });
+
+  const tryMatch = (playerIndex: number, visitedSlots: Set<number>): boolean => {
+    const player = orderedPlayers[playerIndex];
+    const mainPosition = getPrimaryPosition(player) as Position;
+    const eligibleSlots = slots
+      .map((position, slotIndex) => ({ position, slotIndex }))
+      .filter(({ position }) => getRatingForPos(player, position) > 0)
+      .sort((a, b) => {
+        if (a.position === mainPosition && b.position !== mainPosition) return -1;
+        if (b.position === mainPosition && a.position !== mainPosition) return 1;
+        return getRatingForPos(player, b.position) - getRatingForPos(player, a.position);
+      });
+
+    for (const { slotIndex } of eligibleSlots) {
+      if (visitedSlots.has(slotIndex)) continue;
+      visitedSlots.add(slotIndex);
+      if (slotOwners[slotIndex] === -1 || tryMatch(slotOwners[slotIndex], visitedSlots)) {
+        slotOwners[slotIndex] = playerIndex;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const matchedCount = orderedPlayers.reduce(
+    (count, _player, playerIndex) =>
+      count + (tryMatch(playerIndex, new Set<number>()) ? 1 : 0),
+    0
+  );
+  return players.length - matchedCount;
 }
 
 function getCanonicalPartitionSignature(teamA: Player[], teamB: Player[]): string {
@@ -502,6 +548,7 @@ function getRepeatedTeammatePairCount(
 function findBestOverallPartition(
   players: Player[],
   teamSize: number,
+  perTeamSlots: FormationSlots,
   options: OverallPartitionOptions = {}
 ): [Player[], Player[]] {
   const strengths = players.map(getMainRatingStrength);
@@ -520,6 +567,7 @@ function findBestOverallPartition(
     return counts;
   }, emptySlots());
   let bestGoalkeeperPenalty = Number.POSITIVE_INFINITY;
+  let bestFormationMismatch = Number.POSITIVE_INFINITY;
   let bestPositionImbalance = Number.POSITIVE_INFINITY;
   let bestRatingDifference = Number.POSITIVE_INFINITY;
   let bestSelection: number[] = [];
@@ -547,23 +595,36 @@ function findBestOverallPartition(
           : 0;
       const positionImbalance = getPositionImbalance(selectedPositionCounts);
       const ratingDifference = Math.abs(selectedStrength - (totalStrength - selectedStrength));
+      const selectedSet = new Set(selectedIndices);
+      const teamAPlayers = players.filter((_, playerIndex) => selectedSet.has(playerIndex));
+      const teamBPlayers = players.filter((_, playerIndex) => !selectedSet.has(playerIndex));
+      const formationMismatch =
+        getRegisteredFormationMismatch(teamAPlayers, perTeamSlots) +
+        getRegisteredFormationMismatch(teamBPlayers, perTeamSlots);
 
       candidates.push({
         selection: [...selectedIndices],
         goalkeeperPenalty,
+        formationMismatch,
         positionImbalance,
         ratingDifference,
       });
 
       const isBetter =
         goalkeeperPenalty < bestGoalkeeperPenalty ||
-        (goalkeeperPenalty === bestGoalkeeperPenalty && positionImbalance < bestPositionImbalance) ||
         (goalkeeperPenalty === bestGoalkeeperPenalty &&
+          formationMismatch < bestFormationMismatch) ||
+        (goalkeeperPenalty === bestGoalkeeperPenalty &&
+          formationMismatch === bestFormationMismatch &&
+          positionImbalance < bestPositionImbalance) ||
+        (goalkeeperPenalty === bestGoalkeeperPenalty &&
+          formationMismatch === bestFormationMismatch &&
           positionImbalance === bestPositionImbalance &&
           ratingDifference < bestRatingDifference);
 
       if (isBetter) {
         bestGoalkeeperPenalty = goalkeeperPenalty;
+        bestFormationMismatch = formationMismatch;
         bestPositionImbalance = positionImbalance;
         bestRatingDifference = ratingDifference;
         bestSelection = [...selectedIndices];
@@ -617,6 +678,7 @@ function findBestOverallPartition(
       const candidatesWithinTolerance = candidates.flatMap((candidate) => {
         if (
           candidate.goalkeeperPenalty !== bestGoalkeeperPenalty ||
+          candidate.formationMismatch !== bestFormationMismatch ||
           candidate.positionImbalance !== bestPositionImbalance ||
           candidate.ratingDifference > allowedRatingDifference
         ) {
@@ -686,10 +748,10 @@ function arrangeFixedTeam(players: Player[], perTeamSlots: FormationSlots): Team
     throw new Error("Takım oyuncu sayısı formasyon slotlarıyla eşleşmiyor.");
   }
 
-  const tacticalDistance: Record<Position, Record<Position, number>> = {
-    GK: { GK: 0, DEF: 1, MID: 2, FWD: 3 },
-    DEF: { GK: 1, DEF: 0, MID: 1, FWD: 2 },
-    MID: { GK: 2, DEF: 1, MID: 0, FWD: 1 },
+  const fallbackPriority: Record<Position, Record<Position, number>> = {
+    GK: { GK: 0, DEF: 3, MID: 3, FWD: 3 },
+    DEF: { GK: 3, DEF: 0, MID: 1, FWD: 2 },
+    MID: { GK: 3, DEF: 2, MID: 0, FWD: 1 },
     FWD: { GK: 3, DEF: 2, MID: 1, FWD: 0 },
   };
   const scoreAssignment = (player: Player, position: Position): number => {
@@ -698,9 +760,9 @@ function arrangeFixedTeam(players: Player[], perTeamSlots: FormationSlots): Team
 
     if (mainPosition === "GK" && position !== "GK") return Number.NEGATIVE_INFINITY;
     if (position === "GK" && rating <= 0) return Number.NEGATIVE_INFINITY;
-    if (position === mainPosition) return 100_000 + rating;
-    if (rating > 0) return 10_000 + rating;
-    return -1_000 - tacticalDistance[mainPosition][position] * 100;
+    if (position === mainPosition) return 1_030_000 + rating * 100;
+    if (rating > 0) return 1_000_000 + rating * 100;
+    return -1_000_000 - fallbackPriority[position][mainPosition] * 10_000;
   };
 
   const memo = new Map<number, { score: number; slots: number[] }>();
@@ -1046,6 +1108,7 @@ export function generateBalancedTeams(
     const [teamAPlayers, teamBPlayers] = findBestOverallPartition(
       selected,
       config.teamSize,
+      perTeamSlots,
       options
     );
     teamAState = arrangeFixedTeam(teamAPlayers, perTeamSlots);

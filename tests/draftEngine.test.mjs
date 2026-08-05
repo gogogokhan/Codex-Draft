@@ -390,6 +390,45 @@ test("mevki modu, güçlü alternatif DEF ratingini formasyon ihtiyacında kulla
   }
 });
 
+test("ana rating modu, kayıtlı alternatifleri kayıtsız saha atamasından önce kullanır", () => {
+  const players = [
+    player("gk-1", [position("GK", 85, true)]),
+    player("gk-2", [position("GK", 80, true)]),
+    ...[90, 80, 68, 65].map((rating, index) =>
+      player(`def-${index}`, [position("DEF", rating, true)])
+    ),
+    player("ege", [position("MID", 75, true), position("DEF", 75)]),
+    player("flex-def", [position("MID", 74, true), position("DEF", 78)]),
+    player("anil", [position("FWD", 80, true), position("MID", 75)]),
+    player("fatih", [position("FWD", 70, true)]),
+    ...[90, 85, 83, 80].map((rating, index) =>
+      player(`mid-${index}`, [position("MID", rating, true)])
+    ),
+  ];
+  const config = {
+    teamSize: 7,
+    formation: "1-3-2-1",
+    teamAName: "A",
+    teamBName: "B",
+  };
+
+  const result = generateBalancedTeams(players, config, "overall");
+  const draftedPlayers = [...result.teamA, ...result.teamB];
+  const assignedPosition = (id) =>
+    draftedPlayers.find((item) => item.id === id)?.assignedPosition;
+
+  assert.equal(assignedPosition("ege"), "DEF");
+  assert.equal(assignedPosition("flex-def"), "DEF");
+  assert.notEqual(assignedPosition("anil"), "DEF");
+  assert.notEqual(assignedPosition("fatih"), "DEF");
+  for (const team of [result.teamA, result.teamB]) {
+    assert.equal(team.filter((item) => item.assignedPosition === "GK").length, 1);
+    assert.equal(team.filter((item) => item.assignedPosition === "DEF").length, 3);
+    assert.equal(team.filter((item) => item.assignedPosition === "MID").length, 2);
+    assert.equal(team.filter((item) => item.assignedPosition === "FWD").length, 1);
+  }
+});
+
 test("rastgele mod, rating dengesi aramadan eşit ve geçerli iki takım oluşturur", () => {
   const players = [
     player("gk-1", [position("GK", 99, true)]),
