@@ -62,7 +62,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <WorkspaceSidebar onOpenCommunities={openCommunities} />
-      <Header onOpenAddPlayerModal={handleOpenAddModal} />
+      <Header />
 
       <div className={isAuthenticated ? "lg:pl-72" : ""}>
       <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"}`}>

@@ -1,18 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus } from "lucide-react";
+import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/auth/AuthModal";
 
-interface HeaderProps {
-  onOpenAddPlayerModal?: () => void;
-}
-
-export function Header({ onOpenAddPlayerModal }: HeaderProps) {
+export function Header() {
   const {
     currentStep, setCurrentStep, isAuthenticated, user, logout, players,
-    setWarningMessage, canEditPlayers, draftResult, workspaceMode, activeGroupRole,
+    setWarningMessage, draftResult, workspaceMode, activeGroupRole,
   } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -83,17 +79,6 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
           {/* 3. SAĞ ALAN */}
           <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
-            {onOpenAddPlayerModal && canEditPlayers && isPool && (
-              <button
-                type="button"
-                onClick={onOpenAddPlayerModal}
-                className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20 transition cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Oyuncu Ekle</span>
-              </button>
-            )}
-
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1.5 rounded-xl">

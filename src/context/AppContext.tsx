@@ -328,6 +328,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [setTeamConfigState, setAttendance, setDraftResult, setDraftModeState]);
 
+  const openPersonalHome = useCallback(() => {
+    setActiveGroupId(null);
+    setWorkspaceMode("personal");
+    restorePersonalMatchSnapshot();
+    setCommunityMatchUpdatedAt(null);
+    setCurrentStepState("pool");
+    setWarningMessage(null);
+  }, [setActiveGroupId, setWorkspaceMode, restorePersonalMatchSnapshot, setCurrentStepState]);
+
   const fetchGroups = useCallback(async () => {
     setIsGroupsLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
@@ -578,12 +587,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const activeUser = data.session?.user || data.user;
       if (activeUser) {
         setUser(activeUser);
+        openPersonalHome();
         await fetchGroups();
       }
 
       return { success: true };
     },
-    [fetchGroups]
+    [fetchGroups, openPersonalHome]
   );
 
   // SUPABASE GİRİŞ
@@ -610,12 +620,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (data.session?.user || data.user) {
         setUser(data.session?.user || data.user);
+        openPersonalHome();
         await fetchGroups();
       }
 
       return { success: true };
     },
-    [fetchGroups]
+    [fetchGroups, openPersonalHome]
   );
 
   // SUPABASE ÇIKIŞ
