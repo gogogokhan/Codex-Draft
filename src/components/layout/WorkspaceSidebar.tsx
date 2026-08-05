@@ -43,9 +43,11 @@ export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
   const isCommunityActive = currentStep === "community" || workspaceMode === "community";
 
   const content = (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#02050a]">
+    <div className="h-full bg-[#02050a] p-2">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[22px] bg-[linear-gradient(180deg,#111620_0%,#0c121c_34%,#091827_70%,#082033_100%)] shadow-[0_20px_55px_rgba(0,0,0,0.42)]">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-[radial-gradient(ellipse_at_bottom,rgba(8,69,108,0.24),transparent_70%)]" />
 
-      <div className="relative flex h-[82px] shrink-0 items-center gap-3 px-4">
+      <div className="relative flex h-[82px] shrink-0 items-center gap-3 px-3">
         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/35 bg-gradient-to-br from-cyan-400/20 via-blue-600/15 to-[#071126] text-cyan-200 shadow-[inset_0_0_16px_rgba(34,211,238,0.12),0_0_22px_rgba(2,56,214,0.25)]">
           <div className="absolute inset-1 rounded-xl border border-white/5" />
           <Shield className="relative h-5 w-5 fill-cyan-300/10" />
@@ -56,8 +58,7 @@ export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
         </div>
       </div>
 
-      <nav className="relative mx-3 mb-3 mt-8 flex-1 overflow-y-auto rounded-[22px] border border-white/[0.055] bg-[linear-gradient(180deg,#111620_0%,#0c121c_35%,#091827_72%,#082033_100%)] px-3 pb-5 pt-7 shadow-[0_20px_50px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.025)]">
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-[radial-gradient(ellipse_at_bottom,rgba(8,69,108,0.24),transparent_70%)]" />
+      <nav className="relative mt-14 flex-1 overflow-y-auto px-3 pb-5">
         <div className="relative">
         <button
           type="button"
@@ -100,6 +101,7 @@ export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
         </div>}
         </div>
       </nav>
+      </div>
     </div>
   );
 
@@ -109,7 +111,7 @@ export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <aside className="fixed inset-y-0 left-0 z-[60] hidden w-60 bg-[#02050a] shadow-[16px_0_45px_rgba(0,0,0,0.32)] lg:block">{content}</aside>
+      <aside className="fixed inset-y-0 left-0 z-[60] hidden w-72 bg-[#02050a] shadow-[16px_0_45px_rgba(0,0,0,0.32)] lg:block">{content}</aside>
 
       {mobileOpen && <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm lg:hidden" onMouseDown={() => setMobileOpen(false)}>
         <aside className="relative h-full w-[min(86vw,300px)] border-r border-cyan-500/20 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>

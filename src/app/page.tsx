@@ -64,7 +64,7 @@ export default function HomePage() {
       <WorkspaceSidebar onOpenCommunities={openCommunities} />
       <Header onOpenAddPlayerModal={handleOpenAddModal} />
 
-      <div className={isAuthenticated ? "lg:pl-60" : ""}>
+      <div className={isAuthenticated ? "lg:pl-72" : ""}>
       <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"}`}>
         <AuthGuard>
           {currentStep === "community" ? (

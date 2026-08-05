@@ -35,7 +35,7 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
   return (
     <>
-      <header className={`sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl ${isAuthenticated ? "lg:pl-60" : ""}`}>
+      <header className={`sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl ${isAuthenticated ? "lg:pl-72" : ""}`}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           
           {/* 1. SOL ÜST LOGO */}
