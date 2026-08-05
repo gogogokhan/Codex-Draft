@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   Check,
   ChevronRight,
   Copy,
@@ -23,6 +24,7 @@ import type { GroupRole } from "@/types";
 
 type View = "communities" | "overview" | "members" | "settings";
 type FormMode = "create" | "join" | null;
+type PendingMemberRemoval = { userId: string; displayName: string } | null;
 
 const ROLE_LABELS: Record<GroupRole, string> = {
   owner: "Kurucu Admin",
@@ -59,13 +61,24 @@ export function CommunityHub() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [pendingMemberRemoval, setPendingMemberRemoval] = useState<PendingMemberRemoval>(null);
 
   useEffect(() => {
     setRenameValue(activeGroup?.name ?? "");
     setDeleteValue("");
     setMessage(null);
     setConfirmLeave(false);
+    setPendingMemberRemoval(null);
   }, [activeGroup?.id, activeGroup?.name]);
+
+  useEffect(() => {
+    if (!pendingMemberRemoval) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !loading) setPendingMemberRemoval(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [pendingMemberRemoval, loading]);
 
   const openForm = (mode: Exclude<FormMode, null>) => {
     setFormMode(mode);
@@ -117,13 +130,18 @@ export function CommunityHub() {
     setDeleteValue("");
   };
 
-  const removeMember = async (userId: string, displayName: string) => {
-    if (!window.confirm(`${displayName} topluluktan çıkarılsın mı? Bağlı oyuncu kartı da kaldırılacaktır.`)) return;
+  const removeMember = async () => {
+    if (!pendingMemberRemoval) return;
     setLoading(true);
     setMessage(null);
-    const result = await removeGroupMember(userId);
+    const result = await removeGroupMember(pendingMemberRemoval.userId);
     setLoading(false);
-    if (!result.success) setMessage(result.error ?? "Üye topluluktan çıkarılamadı.");
+    if (!result.success) {
+      setMessage(result.error ?? "Üye topluluktan çıkarılamadı.");
+      return;
+    }
+    setPendingMemberRemoval(null);
+    setMessage("Üye topluluktan çıkarıldı.");
   };
 
   const changeMemberRole = async (userId: string, role: "admin" | "editor" | "member") => {
@@ -271,11 +289,11 @@ export function CommunityHub() {
                   <div className="flex min-w-0 items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">{member.role === "owner" ? <Crown className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}</div><div className="min-w-0"><p className="truncate text-sm font-black text-white">{member.display_name}</p><p className="text-[10px] font-bold uppercase text-zinc-500">{ROLE_LABELS[member.role]}</p></div></div>
                   <div className="flex items-end gap-2">
                     {(activeGroupRole === "owner" || activeGroupRole === "admin") && member.role !== "owner" && member.user_id !== user?.id && <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-cyan-300">Yetki</span><select value={member.role} disabled={loading} onChange={(event) => changeMemberRole(member.user_id, event.target.value as "admin" | "editor" | "member")} className="rounded-xl border border-cyan-400/40 bg-[#061127] px-3 py-2 text-xs font-black text-cyan-100 outline-none focus:border-cyan-300 disabled:opacity-50"><option value="member">Üye</option><option value="editor">Moderatör</option><option value="admin">Admin</option></select></label>}
-                    {member.role !== "owner" && member.user_id !== user?.id && (activeGroupRole === "owner" || activeGroupRole === "admin" || (activeGroupRole === "editor" && member.role === "member")) && <button type="button" disabled={loading} onClick={() => removeMember(member.user_id, member.display_name)} className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20" title="Üyeyi topluluktan çıkar"><Trash2 className="h-4 w-4" /></button>}
+                    {member.role !== "owner" && member.user_id !== user?.id && (activeGroupRole === "owner" || activeGroupRole === "admin" || (activeGroupRole === "editor" && member.role === "member")) && <button type="button" disabled={loading} onClick={() => { setPendingMemberRemoval({ userId: member.user_id, displayName: member.display_name }); setMessage(null); }} className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20" title="Üyeyi topluluktan çıkar"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 </div>
               ))}
-              {message && <p className={`rounded-xl border px-3 py-2 text-xs font-bold ${message.includes("güncellendi") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{message}</p>}
+              {message && <p className={`rounded-xl border px-3 py-2 text-xs font-bold ${message.includes("güncellendi") || message.includes("çıkarıldı") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{message}</p>}
             </div>
           )}
 
@@ -319,6 +337,26 @@ export function CommunityHub() {
             <input autoFocus value={value} onChange={(event) => setValue(formMode === "join" ? event.target.value.toUpperCase() : event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && value.trim()) submitForm(); }} placeholder={formMode === "create" ? "Örn. Codex Halı Saha" : "Örn. AB12CD34"} className="mt-2 w-full rounded-xl border border-cyan-500/30 bg-[#020817] px-4 py-3 text-sm font-bold text-white outline-none focus:border-cyan-300"/>
             {message && <p className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-300">{message}</p>}
             <button type="button" disabled={loading || !value.trim()} onClick={submitForm} className="mt-5 w-full rounded-xl bg-cyan-400 px-4 py-3 text-sm font-black text-[#04101f] disabled:opacity-40">{loading ? "İşleniyor..." : formMode === "create" ? "Topluluğu Oluştur" : "Topluluğa Katıl"}</button>
+          </div>
+        </div>
+      )}
+      {pendingMemberRemoval && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          onMouseDown={() => !loading && setPendingMemberRemoval(null)}
+        >
+          <div className="w-full max-w-sm rounded-3xl border border-red-500/35 bg-gradient-to-br from-[#15102d] via-[#071126] to-[#020617] p-6 text-center shadow-[0_0_35px_rgba(239,68,68,0.25),0_0_50px_rgba(6,182,212,0.12)]" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-red-400/50 bg-red-500/15 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.35)]">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-white">Üyeyi Çıkar</h3>
+            <p className="mt-3 text-xs font-medium leading-relaxed text-zinc-400">
+              <strong className="text-amber-300">{pendingMemberRemoval.displayName}</strong> isimli üye topluluktan çıkarılacak. Üyeye bağlı oyuncu kartı da silinecek. Bu işlem geri alınamaz.
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button type="button" disabled={loading} onClick={() => setPendingMemberRemoval(null)} className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-xs font-black text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-50">VAZGEÇ</button>
+              <button type="button" disabled={loading} onClick={removeMember} className="rounded-xl bg-red-500 px-4 py-3 text-xs font-black text-white shadow-[0_0_18px_rgba(239,68,68,0.35)] transition hover:bg-red-400 disabled:opacity-50">{loading ? "ÇIKARILIYOR..." : "EVET, ÇIKAR"}</button>
+            </div>
           </div>
         </div>
       )}
