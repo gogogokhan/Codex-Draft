@@ -44,6 +44,7 @@ interface AppContextValue {
   deletePlayers: (ids: string[]) => Promise<void>;
   attendance: string[];
   toggleAttendance: (id: string) => void;
+  setAttendanceSelection: (ids: string[]) => void;
   selectAllAttendance: () => void;
   clearAttendance: () => void;
   teamConfig: TeamConfig;
@@ -918,6 +919,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [canManageMatch, setPlayers, setAttendance, setDraftResult, persistCommunityMatchState]);
 
+  const setAttendanceSelection = useCallback((ids: string[]) => {
+    if (!canManageMatch) return;
+    const eligibleIds = new Set(players.filter((player) => player.ratingStatus !== "pending").map((player) => player.id));
+    const next = Array.from(new Set(ids)).filter((id) => eligibleIds.has(id));
+    setAttendance(next);
+    setDraftResult(null);
+    void persistCommunityMatchState({ attendance: next, draftResult: null });
+  }, [canManageMatch, players, setAttendance, setDraftResult, persistCommunityMatchState]);
+
   const clearAttendance = useCallback(() => {
     if (!canManageMatch) return;
     setAttendance([]);
@@ -996,6 +1006,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deletePlayers,
       attendance,
       toggleAttendance,
+      setAttendanceSelection,
       selectAllAttendance,
       clearAttendance,
       teamConfig,
@@ -1047,6 +1058,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deletePlayers,
       attendance,
       toggleAttendance,
+      setAttendanceSelection,
       selectAllAttendance,
       clearAttendance,
       teamConfig,

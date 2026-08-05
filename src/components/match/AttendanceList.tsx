@@ -20,7 +20,7 @@ export function AttendanceList() {
     players,
     attendance = [],
     toggleAttendance,
-    clearAttendance,
+    setAttendanceSelection,
     teamConfig,
     setActiveTab,
     draftMode,
@@ -96,16 +96,11 @@ export function AttendanceList() {
     setWarningMessage(null);
 
     if (isTopPlayerSelectionActive) {
-      clearAttendance();
+      setAttendanceSelection([]);
       return;
     }
 
-    clearAttendance();
-
-    const topPlayers = eligiblePlayers.slice(0, required);
-    topPlayers.forEach((player: any) => {
-      toggleAttendance(player.id);
-    });
+    setAttendanceSelection(topPlayerIds);
   };
 
   const handleGenerateTeams = () => {
