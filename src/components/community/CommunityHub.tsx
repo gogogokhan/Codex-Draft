@@ -266,7 +266,7 @@ export function CommunityHub() {
                   {(activeGroupRole === "owner" || activeGroupRole === "admin") && <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
                     <div className="flex items-center gap-2 text-sm font-black text-red-300"><Trash2 className="h-4 w-4" /> Topluluğu Kalıcı Olarak Sil</div>
                     <p className="mt-2 text-xs leading-relaxed text-red-200/75"><strong>{activeGroup.player_count ?? 0} oyuncu</strong> ve <strong>{activeGroup.member_count ?? groupMembers.length} üyelik</strong> kalıcı olarak silinecek. Bu işlem geri alınamaz.</p>
-                    <label className="mt-4 block text-[10px] font-black uppercase tracking-wider text-red-300">Onaylamak için “{activeGroup.name}” yaz</label>
+                    <label className="mt-4 block text-[10px] font-black tracking-wider text-red-300"><span className="uppercase">Onaylamak için</span> “{activeGroup.name}” <span className="uppercase">yaz</span></label>
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={deleteValue} onChange={(event) => setDeleteValue(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-red-500/30 bg-[#160509] px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-red-400"/><button type="button" disabled={loading || deleteValue !== activeGroup.name} onClick={removeCommunity} className="rounded-xl bg-red-500 px-4 py-2.5 text-xs font-black text-white disabled:opacity-35">Topluluğu Sil</button></div>
                   </div>}
                 </>
