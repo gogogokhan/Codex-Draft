@@ -12,13 +12,14 @@ interface HeaderProps {
 export function Header({ onOpenAddPlayerModal }: HeaderProps) {
   const {
     currentStep, setCurrentStep, isAuthenticated, user, logout, players,
-    setWarningMessage, canEditPlayers, draftResult,
+    setWarningMessage, canEditPlayers, draftResult, workspaceMode, activeGroup, activeGroupRole,
   } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const isPool = currentStep === "pool";
   const isBuilder = currentStep === "settings" || currentStep === "attendance" || currentStep === "squad";
   const hasReadyPlayers = players.some((player) => player.ratingStatus !== "pending");
+  const isCommunityViewer = workspaceMode === "community" && activeGroupRole === "member";
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Kullanıcı";
 
@@ -84,7 +85,7 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
           <div className="flex items-center gap-2 sm:gap-3">
             {isAuthenticated && (
               <button type="button" onClick={() => { setWarningMessage(null); setCurrentStep("community"); }} className={`hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition sm:flex ${currentStep === "community" ? "border-violet-400/45 bg-violet-400/20 text-violet-100" : "border-violet-400/30 bg-violet-400/10 text-violet-200 hover:bg-violet-400/20"}`}>
-                <UsersRound className="h-3.5 w-3.5 shrink-0" /><span>Topluluk</span>
+                <UsersRound className="h-3.5 w-3.5 shrink-0" /><span>{workspaceMode === "community" && activeGroup ? `${activeGroup.name} · ${activeGroupRole === "member" ? "Üye" : "Yönetici"}` : "Kişisel Alan"}</span>
               </button>
             )}
             {onOpenAddPlayerModal && canEditPlayers && isPool && (
@@ -179,16 +180,16 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
               <button
                 type="button"
-                disabled={!draftResult}
+                disabled={!draftResult && !isCommunityViewer}
                 onClick={() => {
-                  if (!draftResult) return;
+                  if (!draftResult && !isCommunityViewer) return;
                   setWarningMessage(null);
                   setCurrentStep("squad");
                 }}
                 className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                   currentStep === "squad"
                     ? "cursor-default bg-cyan-400 text-black font-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
-                    : draftResult
+                    : draftResult || isCommunityViewer
                       ? "cursor-pointer border border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200"
                       : "cursor-not-allowed border border-zinc-800 bg-zinc-900/40 text-zinc-600"
                 }`}

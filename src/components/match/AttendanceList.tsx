@@ -142,8 +142,9 @@ export function AttendanceList() {
   };
 
   return (
-    <section className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
-      {!canManageMatch && <><div className="relative z-30 mb-4 rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-3 text-xs font-bold text-violet-100">Salt Okunur — Oyuncu seçimini ve takım oluşturmayı yalnızca Kurucu Admin, Admin ve Moderatör yönetebilir.</div><div className="absolute inset-0 z-20 cursor-not-allowed rounded-2xl bg-transparent" aria-hidden="true" /></>}
+    <section className={`relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 ${!canManageMatch ? "[&_button]:cursor-not-allowed [&_button]:opacity-55" : ""}`}>
+      {!canManageMatch && <div className="mb-4 rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-3 text-xs font-bold text-violet-100">Salt Okunur — Oyuncu seçimini ve takım oluşturmayı yalnızca Kurucu Admin, Admin ve Moderatör yönetebilir.</div>}
+      <fieldset disabled={!canManageMatch} className="contents">
       {/* BAŞLIK VE HIZLI SEÇİM BUTONLARI */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -312,9 +313,9 @@ export function AttendanceList() {
           <PlayerCard
             key={player.id}
             player={player}
-            selectable
+            selectable={canManageMatch}
             selected={attendance.includes(player.id)}
-            onClick={() => handlePlayerClick(player.id)}
+            onClick={canManageMatch ? () => handlePlayerClick(player.id) : undefined}
           />
         ))}
       </div>
@@ -352,6 +353,7 @@ export function AttendanceList() {
           </div>
         </div>
       )}
+      </fieldset>
     </section>
   );
 }
