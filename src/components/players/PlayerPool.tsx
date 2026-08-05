@@ -431,13 +431,6 @@ export function PlayerPool({
           {sortedPlayers.map((playerItem) => (
             <div
               key={playerItem.id}
-              onClick={() => {
-                if (isSelectionMode) {
-                  togglePlayerSelection(playerItem.id);
-                } else if (onEditPlayer) {
-                  onEditPlayer(playerItem);
-                }
-              }}
               className="cursor-pointer transition transform hover:-translate-y-1 hover:scale-[1.02]"
             >
               <PlayerCard
@@ -448,19 +441,9 @@ export function PlayerPool({
                 onClick={
                   isSelectionMode
                     ? () => togglePlayerSelection(playerItem.id)
-                    : undefined
-                }
-                onCardClick={
-                  !isSelectionMode
-                    ? () => {
-                        if (onEditPlayer) onEditPlayer(playerItem);
-                      }
-                    : undefined
-                }
-                onEdit={
-                  !isSelectionMode && onEditPlayer
-                    ? () => onEditPlayer(playerItem)
-                    : undefined
+                    : onEditPlayer
+                      ? () => onEditPlayer(playerItem)
+                      : undefined
                 }
                 onDelete={
                   !isSelectionMode && onDeletePlayer

@@ -80,6 +80,7 @@ interface AppContextValue {
   refreshGroupMembers: () => Promise<void>;
   updateGroupMemberRole: (userId: string, role: Exclude<GroupRole, "owner">) => Promise<AuthResponse>;
   removeGroupMember: (userId: string) => Promise<AuthResponse>;
+  leaveGroup: () => Promise<AuthResponse>;
   renameGroup: (name: string) => Promise<AuthResponse>;
   deleteGroup: () => Promise<AuthResponse>;
 }
@@ -640,6 +641,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [activeGroupId, fetchGroups, refreshGroupMembers]);
 
+  const leaveGroup = useCallback(async (): Promise<AuthResponse> => {
+    if (!activeGroupId) return { success: false, error: "Aktif topluluk bulunamadı." };
+    const { error } = await supabase.rpc("leave_group", { target_group_id: activeGroupId });
+    if (error) return { success: false, error: error.message };
+    setWorkspaceMode("personal");
+    setAttendance([]);
+    setDraftResult(null);
+    setCurrentStepState("pool");
+    await fetchGroups();
+    return { success: true };
+  }, [activeGroupId, fetchGroups, setWorkspaceMode, setAttendance, setDraftResult, setCurrentStepState]);
+
   const renameGroup = useCallback(async (name: string): Promise<AuthResponse> => {
     if (!activeGroupId) return { success: false, error: "Aktif topluluk bulunamadı." };
     const cleanName = name.trim();
@@ -899,6 +912,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshGroupMembers,
       updateGroupMemberRole,
       removeGroupMember,
+      leaveGroup,
       renameGroup,
       deleteGroup,
     }),
@@ -943,6 +957,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshGroupMembers,
       updateGroupMemberRole,
       removeGroupMember,
+      leaveGroup,
       renameGroup,
       deleteGroup,
     ]

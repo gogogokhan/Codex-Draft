@@ -8,6 +8,7 @@ import {
   Crown,
   Database,
   KeyRound,
+  LogOut,
   Pencil,
   Plus,
   Settings,
@@ -42,6 +43,7 @@ export function CommunityHub() {
     selectGroup,
     updateGroupMemberRole,
     removeGroupMember,
+    leaveGroup,
     renameGroup,
     deleteGroup,
     setCurrentStep,
@@ -56,11 +58,13 @@ export function CommunityHub() {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   useEffect(() => {
     setRenameValue(activeGroup?.name ?? "");
     setDeleteValue("");
     setMessage(null);
+    setConfirmLeave(false);
   }, [activeGroup?.id, activeGroup?.name]);
 
   const openForm = (mode: Exclude<FormMode, null>) => {
@@ -120,6 +124,25 @@ export function CommunityHub() {
     const result = await removeGroupMember(userId);
     setLoading(false);
     if (!result.success) setMessage(result.error ?? "Üye topluluktan çıkarılamadı.");
+  };
+
+  const changeMemberRole = async (userId: string, role: "admin" | "editor" | "member") => {
+    setLoading(true);
+    setMessage(null);
+    const result = await updateGroupMemberRole(userId, role);
+    setLoading(false);
+    setMessage(result.success ? "Üye yetkisi güncellendi." : result.error ?? "Üye yetkisi güncellenemedi.");
+  };
+
+  const leaveCommunity = async () => {
+    setLoading(true);
+    setMessage(null);
+    const result = await leaveGroup();
+    setLoading(false);
+    if (!result.success) {
+      setMessage(result.error ?? "Topluluktan ayrılamadınız.");
+      setConfirmLeave(false);
+    }
   };
 
   if (isGroupsLoading) {
@@ -246,12 +269,13 @@ export function CommunityHub() {
               {groupMembers.map((member) => (
                 <div key={member.user_id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-800 bg-black/20 px-4 py-3">
                   <div className="flex min-w-0 items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">{member.role === "owner" ? <Crown className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}</div><div className="min-w-0"><p className="truncate text-sm font-black text-white">{member.display_name}</p><p className="text-[10px] font-bold uppercase text-zinc-500">{ROLE_LABELS[member.role]}</p></div></div>
-                  <div className="flex items-center gap-2">
-                    {(activeGroupRole === "owner" || activeGroupRole === "admin") && member.role !== "owner" && member.user_id !== user?.id && <select value={member.role} onChange={(event) => updateGroupMemberRole(member.user_id, event.target.value as "admin" | "editor" | "member")} className="rounded-xl border border-cyan-500/25 bg-[#061127] px-3 py-2 text-xs font-black text-cyan-200 outline-none"><option value="member">Üye</option><option value="editor">Moderatör</option><option value="admin">Admin</option></select>}
+                  <div className="flex items-end gap-2">
+                    {(activeGroupRole === "owner" || activeGroupRole === "admin") && member.role !== "owner" && member.user_id !== user?.id && <label className="block"><span className="mb-1 block text-[9px] font-black uppercase tracking-wider text-cyan-300">Yetki</span><select value={member.role} disabled={loading} onChange={(event) => changeMemberRole(member.user_id, event.target.value as "admin" | "editor" | "member")} className="rounded-xl border border-cyan-400/40 bg-[#061127] px-3 py-2 text-xs font-black text-cyan-100 outline-none focus:border-cyan-300 disabled:opacity-50"><option value="member">Üye</option><option value="editor">Moderatör</option><option value="admin">Admin</option></select></label>}
                     {member.role !== "owner" && member.user_id !== user?.id && (activeGroupRole === "owner" || activeGroupRole === "admin" || (activeGroupRole === "editor" && member.role === "member")) && <button type="button" disabled={loading} onClick={() => removeMember(member.user_id, member.display_name)} className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20" title="Üyeyi topluluktan çıkar"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 </div>
               ))}
+              {message && <p className={`rounded-xl border px-3 py-2 text-xs font-bold ${message.includes("güncellendi") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{message}</p>}
             </div>
           )}
 
@@ -271,6 +295,11 @@ export function CommunityHub() {
                   </div>}
                 </>
               ) : <p className="rounded-2xl border border-zinc-800 bg-black/20 p-4 text-sm text-zinc-400">Topluluk ayarlarını değiştirme yetkiniz bulunmuyor.</p>}
+              {activeGroupRole && activeGroupRole !== "owner" && <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+                <div className="flex items-center gap-2 text-sm font-black text-amber-200"><LogOut className="h-4 w-4" /> Topluluktan Ayrıl</div>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">Üyeliğiniz ve size bağlı oyuncu kartı bu topluluktan kaldırılacaktır.</p>
+                {!confirmLeave ? <button type="button" onClick={() => { setConfirmLeave(true); setMessage(null); }} className="mt-4 rounded-xl border border-amber-400/35 bg-amber-400/10 px-4 py-2.5 text-xs font-black text-amber-200 hover:bg-amber-400/20">Topluluktan Ayrıl</button> : <div className="mt-4 rounded-xl border border-amber-400/25 bg-black/20 p-3"><p className="text-xs font-bold text-amber-100">“{activeGroup.name}” topluluğundan ayrılmak istediğinize emin misiniz?</p><div className="mt-3 flex gap-2"><button type="button" disabled={loading} onClick={() => setConfirmLeave(false)} className="flex-1 rounded-lg border border-zinc-600 px-3 py-2 text-xs font-black text-zinc-300">HAYIR</button><button type="button" disabled={loading} onClick={leaveCommunity} className="flex-1 rounded-lg bg-amber-400 px-3 py-2 text-xs font-black text-[#241500] disabled:opacity-50">{loading ? "İŞLENİYOR..." : "EVET, AYRIL"}</button></div></div>}
+              </div>}
               {message && <p className={`rounded-xl border px-3 py-2 text-xs font-bold ${message.includes("güncellendi") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{message}</p>}
             </div>
           )}

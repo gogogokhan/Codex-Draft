@@ -84,6 +84,12 @@ export function PlayerModal({
     if (activePlayer) {
       setName(activePlayer.name || activePlayer.fullName || '');
 
+      const isPending = activePlayer.ratingStatus === 'pending' || activePlayer.rating_status === 'pending';
+      if (isPending) {
+        setPositions([]);
+        return;
+      }
+
       let rawPositions = activePlayer.positions || activePlayer.ratings;
       if (typeof rawPositions === 'string') {
         try {
