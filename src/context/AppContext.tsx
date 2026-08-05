@@ -299,9 +299,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const fetchGroups = useCallback(async () => {
     setIsGroupsLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const currentUserId = session?.user.id;
+    if (!currentUserId) {
+      setGroups([]);
+      setGroupRoles({});
+      setIsGroupsLoading(false);
+      return [];
+    }
+
     const { data, error } = await supabase
       .from("group_members")
       .select("group_id, role, groups(*)")
+      .eq("user_id", currentUserId)
       .order("joined_at", { ascending: true });
 
     if (error) {
