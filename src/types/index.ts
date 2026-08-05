@@ -1,7 +1,7 @@
 export type Position = "GK" | "DEF" | "MID" | "FWD";
 export type DraftMode = "overall" | "positional" | "random";
 export type UserRole = "ADMIN" | "USER";
-export type GroupRole = "owner" | "editor" | "member";
+export type GroupRole = "owner" | "admin" | "editor" | "member";
 export type WizardStep = "players" | "match" | "draft";
 
 export interface PlayerPosition {
@@ -16,6 +16,8 @@ export interface Player {
   avatar: string;
   positions: PlayerPosition[];
   overall?: number;
+  ratingStatus?: "pending" | "ready";
+  linkedUserId?: string | null;
 }
 
 export interface Group {

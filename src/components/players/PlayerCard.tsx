@@ -85,6 +85,7 @@ export function PlayerCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!player) return null;
+  const isPending = player.ratingStatus === "pending" || player.rating_status === "pending";
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -258,10 +259,10 @@ export function PlayerCard({
       {/* 1. SOL ÜST REYTİNG VE MEVKİ */}
       <div className="absolute top-[24%] left-[15%] z-20 text-center flex flex-col items-center justify-center pointer-events-none">
         <span className="font-black tracking-tighter block text-[#F5D77F] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-none text-[28px]">
-          {overallRating}
+          {isPending ? "--" : overallRating}
         </span>
         <span className="font-black block text-[#D4AF37] tracking-wider leading-none mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] text-[13px]">
-          {getPositionLabel(mainPosCode)}
+          {isPending ? "BEK" : getPositionLabel(mainPosCode)}
         </span>
       </div>
 
@@ -286,8 +287,14 @@ export function PlayerCard({
         </span>
       </div>
 
+      {isPending && (
+        <div className="absolute left-1/2 top-[73%] z-30 -translate-x-1/2 whitespace-nowrap rounded-md border border-amber-300/50 bg-black/80 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-amber-200 shadow-lg">
+          Rating Bekleniyor
+        </div>
+      )}
+
       {/* 4. POZİSYON BAŞLIKLARI */}
-      <div className="absolute top-[72.5%] inset-x-[15%] z-20 text-center pointer-events-none">
+      <div className={`absolute top-[72.5%] inset-x-[15%] z-20 text-center pointer-events-none ${isPending ? "invisible" : ""}`}>
         <div className={`grid ${gridColsClass} text-center font-black text-[#D4AF37] tracking-wider text-[12px]`}>
           {posList.map((item, idx) => (
             <span key={idx}>{getPositionLabel(item.code)}</span>
@@ -296,7 +303,7 @@ export function PlayerCard({
       </div>
 
       {/* 5. POZİSYON PUANLARI */}
-      <div className="absolute top-[75.5%] inset-x-[15%] z-20 text-center pointer-events-none">
+      <div className={`absolute top-[75.5%] inset-x-[15%] z-20 text-center pointer-events-none ${isPending ? "invisible" : ""}`}>
         <div className={`grid ${gridColsClass} text-center font-black text-[#F5D77F] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] text-[14px]`}>
           {posList.map((item, idx) => (
             <span key={idx}>{Number(item.rating) || 80}</span>

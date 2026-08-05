@@ -24,8 +24,9 @@ type View = "communities" | "overview" | "members" | "settings";
 type FormMode = "create" | "join" | null;
 
 const ROLE_LABELS: Record<GroupRole, string> = {
-  owner: "Kurucu",
-  editor: "Yönetici",
+  owner: "Kurucu Admin",
+  admin: "Admin",
+  editor: "Moderatör",
   member: "Üye",
 };
 
@@ -40,10 +41,12 @@ export function CommunityHub() {
     joinGroup,
     selectGroup,
     updateGroupMemberRole,
+    removeGroupMember,
     renameGroup,
     deleteGroup,
     setCurrentStep,
     selectPersonalWorkspace,
+    user,
   } = useApp();
   const [view, setView] = useState<View>("communities");
   const [formMode, setFormMode] = useState<FormMode>(null);
@@ -108,6 +111,15 @@ export function CommunityHub() {
     }
     setView("communities");
     setDeleteValue("");
+  };
+
+  const removeMember = async (userId: string, displayName: string) => {
+    if (!window.confirm(`${displayName} topluluktan çıkarılsın mı? Bağlı oyuncu kartı da kaldırılacaktır.`)) return;
+    setLoading(true);
+    setMessage(null);
+    const result = await removeGroupMember(userId);
+    setLoading(false);
+    if (!result.success) setMessage(result.error ?? "Üye topluluktan çıkarılamadı.");
   };
 
   if (isGroupsLoading) {
@@ -178,13 +190,14 @@ export function CommunityHub() {
       )}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => openForm("create")} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-[#04101f] transition hover:bg-cyan-300">
+        <button type="button" disabled={groups.length >= 3} onClick={() => openForm("create")} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-[#04101f] transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-35">
           <Plus className="h-4 w-4" /> Topluluk Oluştur
         </button>
-        <button type="button" onClick={() => openForm("join")} className="flex items-center justify-center gap-2 rounded-2xl border border-violet-400/35 bg-violet-400/10 px-4 py-3 text-sm font-black text-violet-200 transition hover:bg-violet-400/20">
+        <button type="button" disabled={groups.length >= 3} onClick={() => openForm("join")} className="flex items-center justify-center gap-2 rounded-2xl border border-violet-400/35 bg-violet-400/10 px-4 py-3 text-sm font-black text-violet-200 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-35">
           <KeyRound className="h-4 w-4" /> Davet Koduyla Katıl
         </button>
       </div>
+      {groups.length >= 3 && <p className="mt-3 text-center text-xs font-bold text-amber-300">En fazla 3 toplulukta bulunabilirsiniz.</p>}
     </>
   );
 
@@ -233,7 +246,10 @@ export function CommunityHub() {
               {groupMembers.map((member) => (
                 <div key={member.user_id} className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-800 bg-black/20 px-4 py-3">
                   <div className="flex min-w-0 items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">{member.role === "owner" ? <Crown className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}</div><div className="min-w-0"><p className="truncate text-sm font-black text-white">{member.display_name}</p><p className="text-[10px] font-bold uppercase text-zinc-500">{ROLE_LABELS[member.role]}</p></div></div>
-                  {activeGroupRole === "owner" && member.role !== "owner" && <select value={member.role} onChange={(event) => updateGroupMemberRole(member.user_id, event.target.value as "editor" | "member")} className="rounded-xl border border-cyan-500/25 bg-[#061127] px-3 py-2 text-xs font-black text-cyan-200 outline-none"><option value="member">Üye</option><option value="editor">Yönetici</option></select>}
+                  <div className="flex items-center gap-2">
+                    {(activeGroupRole === "owner" || activeGroupRole === "admin") && member.role !== "owner" && member.user_id !== user?.id && <select value={member.role} onChange={(event) => updateGroupMemberRole(member.user_id, event.target.value as "admin" | "editor" | "member")} className="rounded-xl border border-cyan-500/25 bg-[#061127] px-3 py-2 text-xs font-black text-cyan-200 outline-none"><option value="member">Üye</option><option value="editor">Moderatör</option><option value="admin">Admin</option></select>}
+                    {member.role !== "owner" && member.user_id !== user?.id && (activeGroupRole === "owner" || activeGroupRole === "admin" || (activeGroupRole === "editor" && member.role === "member")) && <button type="button" disabled={loading} onClick={() => removeMember(member.user_id, member.display_name)} className="rounded-lg border border-red-500/25 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20" title="Üyeyi topluluktan çıkar"><Trash2 className="h-4 w-4" /></button>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -241,20 +257,20 @@ export function CommunityHub() {
 
           {view === "settings" && (
             <div className="mt-6 space-y-5">
-              {activeGroupRole === "owner" ? (
+              {activeGroupRole === "owner" || activeGroupRole === "admin" || activeGroupRole === "editor" ? (
                 <>
                   <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
                     <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Topluluk Adı</label>
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-[#020817] px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-cyan-400"/><button type="button" disabled={loading || renameValue.trim() === activeGroup.name} onClick={saveName} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-xs font-black text-[#04101f] disabled:opacity-40"><Pencil className="h-4 w-4" /> Kaydet</button></div>
                   </div>
-                  <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
+                  {(activeGroupRole === "owner" || activeGroupRole === "admin") && <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
                     <div className="flex items-center gap-2 text-sm font-black text-red-300"><Trash2 className="h-4 w-4" /> Topluluğu Kalıcı Olarak Sil</div>
                     <p className="mt-2 text-xs leading-relaxed text-red-200/75"><strong>{activeGroup.player_count ?? 0} oyuncu</strong> ve <strong>{activeGroup.member_count ?? groupMembers.length} üyelik</strong> kalıcı olarak silinecek. Bu işlem geri alınamaz.</p>
                     <label className="mt-4 block text-[10px] font-black uppercase tracking-wider text-red-300">Onaylamak için “{activeGroup.name}” yaz</label>
                     <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={deleteValue} onChange={(event) => setDeleteValue(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-red-500/30 bg-[#160509] px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-red-400"/><button type="button" disabled={loading || deleteValue !== activeGroup.name} onClick={removeCommunity} className="rounded-xl bg-red-500 px-4 py-2.5 text-xs font-black text-white disabled:opacity-35">Topluluğu Sil</button></div>
-                  </div>
+                  </div>}
                 </>
-              ) : <p className="rounded-2xl border border-zinc-800 bg-black/20 p-4 text-sm text-zinc-400">Topluluk ayarlarını yalnızca kurucu değiştirebilir.</p>}
+              ) : <p className="rounded-2xl border border-zinc-800 bg-black/20 p-4 text-sm text-zinc-400">Topluluk ayarlarını değiştirme yetkiniz bulunmuyor.</p>}
               {message && <p className={`rounded-xl border px-3 py-2 text-xs font-bold ${message.includes("güncellendi") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>{message}</p>}
             </div>
           )}

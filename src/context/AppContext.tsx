@@ -79,6 +79,7 @@ interface AppContextValue {
   selectGroup: (groupId: string) => void;
   refreshGroupMembers: () => Promise<void>;
   updateGroupMemberRole: (userId: string, role: Exclude<GroupRole, "owner">) => Promise<AuthResponse>;
+  removeGroupMember: (userId: string) => Promise<AuthResponse>;
   renameGroup: (name: string) => Promise<AuthResponse>;
   deleteGroup: () => Promise<AuthResponse>;
 }
@@ -171,6 +172,19 @@ const normalizePositionCode = (value: unknown): Position => {
 const normalizePlayer = (player: any): Player => {
   if (!player) return null as any;
 
+  const ratingStatus = player?.rating_status === "pending" || player?.ratingStatus === "pending" ? "pending" : "ready";
+  if (ratingStatus === "pending") {
+    return {
+      id: String(player.id ?? ""),
+      name: String(player.name ?? ""),
+      avatar: String(player.avatar ?? ""),
+      overall: 0,
+      positions: [],
+      ratingStatus,
+      linkedUserId: player.linked_user_id ?? player.linkedUserId ?? null,
+    };
+  }
+
   const legacyPrimary = normalizePositionCode(
     player?.position?.primary ?? player?.position ?? player?.mainPosition ?? player?.pos ?? player?.role ?? "MID"
   );
@@ -182,6 +196,8 @@ const normalizePlayer = (player: any): Player => {
     avatar: String(player.avatar ?? ""),
     overall,
     positions: normalizePositions(player.positions ?? player.ratings, overall, legacyPrimary),
+    ratingStatus,
+    linkedUserId: player.linked_user_id ?? player.linkedUserId ?? null,
   };
 
   // 1. PRIMARY POSITION'U BEL
@@ -278,7 +294,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? null;
   const activeGroupRole = activeGroup ? groupRoles[activeGroup.id] ?? null : null;
-  const canEditPlayers = workspaceMode === "personal" || activeGroupRole === "owner" || activeGroupRole === "editor";
+  const canEditPlayers = workspaceMode === "personal" || activeGroupRole === "owner" || activeGroupRole === "admin" || activeGroupRole === "editor";
 
   const fetchGroups = useCallback(async () => {
     setIsGroupsLoading(true);
@@ -613,6 +629,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: true };
   }, [activeGroupId, refreshGroupMembers]);
 
+  const removeGroupMember = useCallback(async (userId: string): Promise<AuthResponse> => {
+    if (!activeGroupId) return { success: false, error: "Aktif topluluk bulunamadı." };
+    const { error } = await supabase.rpc("remove_group_member", {
+      target_group_id: activeGroupId,
+      target_user_id: userId,
+    });
+    if (error) return { success: false, error: error.message };
+    await Promise.all([fetchGroups(), refreshGroupMembers()]);
+    return { success: true };
+  }, [activeGroupId, fetchGroups, refreshGroupMembers]);
+
   const renameGroup = useCallback(async (name: string): Promise<AuthResponse> => {
     if (!activeGroupId) return { success: false, error: "Aktif topluluk bulunamadı." };
     const cleanName = name.trim();
@@ -653,6 +680,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           name: player.name,
           overall: (player as any).overall ?? 80,
           positions: player.positions.map((position) => JSON.stringify(position)),
+          rating_status: "ready",
         })
         .select()
         .single();
@@ -678,6 +706,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         name: player.name,
         overall: (player as any).overall ?? 80,
         positions: player.positions.map((position) => JSON.stringify(position)),
+        rating_status: "ready",
         updated_by: user.id,
       })
       .eq("id", player.id);
@@ -766,14 +795,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleAttendance = useCallback((id: string) => {
+    const player = players.find((item) => item.id === id);
+    if (!player || player.ratingStatus === "pending") return;
     setAttendance((prev) =>
       prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
     );
-  }, [setAttendance]);
+  }, [players, setAttendance]);
 
   const selectAllAttendance = useCallback(() => {
     setPlayers((current) => {
-      setAttendance(current.map((p) => p.id));
+      setAttendance(current.filter((p) => p.ratingStatus !== "pending").map((p) => p.id));
       return current;
     });
   }, [setPlayers, setAttendance]);
@@ -797,7 +828,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setCurrentStepState]);
 
   const generateDraft = useCallback(() => {
-    const attending = players.filter((p) => attendance.includes(p.id));
+    const attending = players.filter((p) => p.ratingStatus !== "pending" && attendance.includes(p.id));
     if (attending.length === 0) return;
 
     const randomized = shuffleArray(attending);
@@ -867,6 +898,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
+      removeGroupMember,
       renameGroup,
       deleteGroup,
     }),
@@ -910,6 +942,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectGroup,
       refreshGroupMembers,
       updateGroupMemberRole,
+      removeGroupMember,
       renameGroup,
       deleteGroup,
     ]

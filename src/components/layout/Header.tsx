@@ -18,11 +18,12 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
   const isPool = currentStep === "pool";
   const isBuilder = currentStep === "settings" || currentStep === "attendance" || currentStep === "squad";
+  const hasReadyPlayers = players.some((player) => player.ratingStatus !== "pending");
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Kullanıcı";
 
   const handleBuilderClick = () => {
-    if (!players || players.length === 0) {
+    if (!hasReadyPlayers) {
       setCurrentStep("pool");
       setWarningMessage("Maç Kurucusuna geçebilmek ve ayarlara başlamak için önce en az 1 oyuncu eklemelisiniz!");
       return;
@@ -133,7 +134,7 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
               <button
                 type="button"
                 onClick={() => {
-                  if (!players || players.length === 0) {
+                  if (!hasReadyPlayers) {
                     setCurrentStep("pool");
                     setWarningMessage("Maç Kurucusuna geçebilmek ve ayarlara başlamak için önce en az 1 oyuncu eklemelisiniz!");
                     return;
@@ -156,7 +157,7 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
               <button
                 type="button"
                 onClick={() => {
-                  if (!players || players.length === 0) {
+                  if (!hasReadyPlayers) {
                     setCurrentStep("pool");
                     setWarningMessage("Maç Kurucusuna geçebilmek ve ayarlara başlamak için önce en az 1 oyuncu eklemelisiniz!");
                     return;

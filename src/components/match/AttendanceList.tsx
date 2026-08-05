@@ -36,7 +36,9 @@ export function AttendanceList() {
 
   const teamSize = teamConfig?.teamSize || 0;
   const required = teamSize ? teamSize * 2 : 0;
-  const topPlayerIds = players.slice(0, required).map((player: any) => player.id);
+  const eligiblePlayers = players.filter((player: any) => player.ratingStatus !== "pending");
+  const pendingPlayerCount = players.length - eligiblePlayers.length;
+  const topPlayerIds = eligiblePlayers.slice(0, required).map((player: any) => player.id);
   const isTopPlayerSelectionActive =
     topPlayerIds.length > 0 && topPlayerIds.every((playerId) => attendance.includes(playerId));
   const isEnough = teamSize ? attendance.length === required : false;
@@ -99,7 +101,7 @@ export function AttendanceList() {
 
     clearAttendance();
 
-    const topPlayers = players.slice(0, required);
+    const topPlayers = eligiblePlayers.slice(0, required);
     topPlayers.forEach((player: any) => {
       toggleAttendance(player.id);
     });
@@ -107,7 +109,7 @@ export function AttendanceList() {
 
   const handleGenerateTeams = () => {
     if (!isEnough) return;
-    const attendingPlayers = players.filter((player) => attendance.includes(player.id));
+    const attendingPlayers = eligiblePlayers.filter((player) => attendance.includes(player.id));
     const issues = analyzeFormationCompatibility(attendingPlayers, teamConfig);
 
     if (issues.length > 0) {
@@ -307,8 +309,9 @@ export function AttendanceList() {
       </div>
 
       {/* OYUNCU KARTLARI GRİDİ */}
+      {pendingPlayerCount > 0 && <p className="mb-3 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-200">Rating bilgisi bekleyen {pendingPlayerCount} oyuncu takım seçimine dahil edilmedi.</p>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {players.map((player: any) => (
+        {eligiblePlayers.map((player: any) => (
           <PlayerCard
             key={player.id}
             player={player}
