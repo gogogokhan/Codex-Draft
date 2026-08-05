@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { PlayerCard } from './PlayerCard';
 import { Zap, Shield, Shuffle, RefreshCw, ArrowLeft, Trophy, Users } from 'lucide-react';
-import { getMainPosition, getOverallRating, getPositionRating, POSITION_LABELS } from '@/lib/positions';
+import { POSITION_LABELS } from '@/lib/positions';
 import type { Player, Position } from '@/types';
 
 // Formasyon ister string ("1-2-2-2") ister obje ({gk:1, def:2...}) gelsin, metne dönüştüren güvenli yardımcı
@@ -108,27 +108,9 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
   const teamAName = teamConfig?.teamAName || 'CODEX BLUE';
   const teamBName = teamConfig?.teamBName || 'CODEX RED';
 
-  // Takım Ortalama Hesaplama
-  const calcAvgRating = (players: any[]) => {
-    if (!players || players.length === 0) return "0.0";
-    const sum = players.reduce((acc, player) => {
-      const normalizedPlayer = player as Player;
-      const assignedPosition = player.assignedPosition as Position | undefined;
-      const rating = draftMode === 'overall'
-        ? getOverallRating(normalizedPlayer)
-        : Number(
-            player.effectiveRating ??
-            (assignedPosition
-              ? getPositionRating(normalizedPlayer, assignedPosition)
-              : getPositionRating(normalizedPlayer, getMainPosition(normalizedPlayer)))
-          );
-      return acc + rating;
-    }, 0);
-    return (sum / players.length).toFixed(1);
-  };
-
-  const teamAAvg = calcAvgRating(teamAPlayers);
-  const teamBAvg = calcAvgRating(teamBPlayers);
+  // Rozetler, takım oluşturma algoritmasının hesapladığı kesin güç değerlerini kullanır.
+  const teamAAvg = Number(draftResult.teamAPower ?? 0).toFixed(1);
+  const teamBAvg = Number(draftResult.teamBPower ?? 0).toFixed(1);
   const draftModePresentation =
     draftMode === 'overall'
       ? {
