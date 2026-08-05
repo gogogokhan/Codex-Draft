@@ -10,6 +10,7 @@ export function TeamConfigPanel() {
     setTeamConfig,
     setCurrentStep,
     setActiveTab,
+    canManageMatch,
   } = useApp();
 
   // LOCAL STATE (null Başlangıç)
@@ -160,7 +161,8 @@ export function TeamConfigPanel() {
   const isMaxReached = Boolean(teamSize && currentFormationSum >= teamSize);
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-6">
+    <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-6">
+      {!canManageMatch && <><div className="relative z-30 rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-3 text-xs font-bold text-violet-100">Salt Okunur — Bu toplulukta maç ayarlarını yalnızca Kurucu Admin, Admin ve Moderatör değiştirebilir.</div><div className="absolute inset-0 z-20 cursor-not-allowed rounded-2xl bg-transparent" aria-hidden="true" /></>}
       {/* BAŞLIK */}
       <div className="border-b border-zinc-800/80 pb-3">
         <div className="flex items-center gap-2 text-lg font-bold text-white">

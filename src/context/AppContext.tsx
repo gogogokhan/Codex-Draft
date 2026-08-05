@@ -14,6 +14,7 @@ import { generateBalancedTeams, swapPlayers } from "@/lib/draftEngine";
 import { getFormationForTeamSize } from "@/lib/formations";
 import {
   DEFAULT_TEAM_CONFIG,
+  type CommunityMatchState,
   DraftResult,
   Player,
   TeamConfig,
@@ -72,6 +73,8 @@ interface AppContextValue {
   groupMembers: GroupMembership[];
   isGroupsLoading: boolean;
   canEditPlayers: boolean;
+  canManageMatch: boolean;
+  communityMatchUpdatedAt: string | null;
   workspaceMode: WorkspaceMode;
   selectPersonalWorkspace: () => void;
   createGroup: (name: string) => Promise<AuthResponse>;
@@ -288,14 +291,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teamConfig, setTeamConfigState] = usePersistentState<TeamConfig>('codex-teamConfig', DEFAULT_TEAM_CONFIG);
   const [draftResult, setDraftResult] = usePersistentState<DraftResult | null>('codex-draftResult', null);
   const [currentStep, setCurrentStepState] = usePersistentState<StepType>('codex-currentStep', "pool");
-  const [draftMode, setDraftMode] = usePersistentState<DraftMode>('codex-draftMode', "overall");
+  const [draftMode, setDraftModeState] = usePersistentState<DraftMode>('codex-draftMode', "overall");
   const [isAdmin, setIsAdmin] = usePersistentState<boolean>('codex-isAdmin', false);
 
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [communityMatchUpdatedAt, setCommunityMatchUpdatedAt] = useState<string | null>(null);
 
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? null;
   const activeGroupRole = activeGroup ? groupRoles[activeGroup.id] ?? null : null;
   const canEditPlayers = workspaceMode === "personal" || activeGroupRole === "owner" || activeGroupRole === "admin" || activeGroupRole === "editor";
+  const canManageMatch = workspaceMode === "personal" || activeGroupRole === "owner" || activeGroupRole === "admin" || activeGroupRole === "editor";
+
+  const savePersonalMatchSnapshot = useCallback(() => {
+    if (typeof window === "undefined" || workspaceMode !== "personal") return;
+    window.localStorage.setItem("codex-personalMatchState", JSON.stringify({
+      teamConfig,
+      attendance,
+      draftResult,
+      draftMode,
+    }));
+  }, [workspaceMode, teamConfig, attendance, draftResult, draftMode]);
+
+  const restorePersonalMatchSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const rawSnapshot = window.localStorage.getItem("codex-personalMatchState");
+    if (!rawSnapshot) return;
+    try {
+      const snapshot = JSON.parse(rawSnapshot);
+      setTeamConfigState(snapshot.teamConfig ?? DEFAULT_TEAM_CONFIG);
+      setAttendance(Array.isArray(snapshot.attendance) ? snapshot.attendance : []);
+      setDraftResult(snapshot.draftResult ?? null);
+      setDraftModeState(snapshot.draftMode ?? "overall");
+    } catch {
+      window.localStorage.removeItem("codex-personalMatchState");
+    }
+  }, [setTeamConfigState, setAttendance, setDraftResult, setDraftModeState]);
 
   const fetchGroups = useCallback(async () => {
     setIsGroupsLoading(true);
@@ -392,6 +422,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setGroupMembers((data ?? []) as GroupMembership[]);
   }, [activeGroupId]);
 
+  const fetchCommunityMatchState = useCallback(async (groupId: string) => {
+    const { data, error } = await supabase
+      .from("community_match_states")
+      .select("group_id, team_config, attendance, draft_mode, draft_result, updated_by, updated_at")
+      .eq("group_id", groupId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+
+    const matchState = data as CommunityMatchState | null;
+    setTeamConfigState(matchState?.team_config ?? DEFAULT_TEAM_CONFIG);
+    setAttendance(matchState?.attendance ?? []);
+    setDraftModeState(matchState?.draft_mode ?? "overall");
+    setDraftResult(matchState?.draft_result ?? null);
+    setCommunityMatchUpdatedAt(matchState?.updated_at ?? null);
+  }, [setTeamConfigState, setAttendance, setDraftModeState, setDraftResult]);
+
   // Oturum durumunu ve değişiklikleri dinle
   useEffect(() => {
     let hydrationTimeout: NodeJS.Timeout;
@@ -460,8 +506,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     fetchPlayers(selectedGroupId).catch((error) => console.error("Player fetch error:", error));
-    if (selectedGroupId) refreshGroupMembers().catch((error) => console.error("Member fetch error:", error));
-    else setGroupMembers([]);
+    if (selectedGroupId) {
+      refreshGroupMembers().catch((error) => console.error("Member fetch error:", error));
+      fetchCommunityMatchState(selectedGroupId).catch((error) => console.error("Community match fetch error:", error));
+    } else {
+      setGroupMembers([]);
+      setCommunityMatchUpdatedAt(null);
+    }
 
     const channel = supabase
       .channel(selectedGroupId ? `group-players-${selectedGroupId}` : `personal-players-${user.id}`)
@@ -487,13 +538,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           refreshGroupMembers().catch((error) => console.error("Member refresh error:", error));
         }
       );
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "community_match_states", filter: `group_id=eq.${selectedGroupId}` },
+        () => fetchCommunityMatchState(selectedGroupId).catch((error) => console.error("Community match refresh error:", error))
+      );
     }
     channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, activeGroupId, workspaceMode, fetchGroups, fetchPlayers, refreshGroupMembers, setPlayers]);
+  }, [user, activeGroupId, workspaceMode, fetchGroups, fetchPlayers, refreshGroupMembers, fetchCommunityMatchState, setPlayers]);
 
   // SUPABASE KAYIT
   const register = useCallback(
@@ -575,9 +631,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTeamConfigState(DEFAULT_TEAM_CONFIG);
     setCurrentStepState("pool");
     setWorkspaceMode("personal");
-    setDraftMode("overall");
+    setDraftModeState("overall");
     setIsAdmin(false);
-  }, [setActiveGroupId, setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setWorkspaceMode, setDraftMode, setIsAdmin]);
+  }, [setActiveGroupId, setPlayers, setAttendance, setDraftResult, setTeamConfigState, setCurrentStepState, setWorkspaceMode, setDraftModeState, setIsAdmin]);
 
   const createGroup = useCallback(async (name: string): Promise<AuthResponse> => {
     const cleanName = name.trim();
@@ -588,13 +644,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.rpc("create_group", { group_name: cleanName });
     if (error) return { success: false, error: error.message };
     const createdGroup = data as Group;
+    savePersonalMatchSnapshot();
     await fetchGroups();
     if (createdGroup?.id) {
       setActiveGroupId(createdGroup.id);
       setWorkspaceMode("community");
     }
     return { success: true };
-  }, [groups, fetchGroups, setActiveGroupId, setWorkspaceMode]);
+  }, [groups, fetchGroups, savePersonalMatchSnapshot, setActiveGroupId, setWorkspaceMode]);
 
   const joinGroup = useCallback(async (code: string): Promise<AuthResponse> => {
     const cleanCode = code.trim().toUpperCase();
@@ -602,28 +659,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.rpc("join_group_by_code", { join_code: cleanCode });
     if (error) return { success: false, error: error.message };
     const joinedGroup = data as Group;
+    savePersonalMatchSnapshot();
     await fetchGroups();
     if (joinedGroup?.id) {
       setActiveGroupId(joinedGroup.id);
       setWorkspaceMode("community");
     }
     return { success: true };
-  }, [fetchGroups, setActiveGroupId, setWorkspaceMode]);
+  }, [fetchGroups, savePersonalMatchSnapshot, setActiveGroupId, setWorkspaceMode]);
 
   const selectGroup = useCallback((groupId: string) => {
     if (!groups.some((group) => group.id === groupId)) return;
+    savePersonalMatchSnapshot();
     setActiveGroupId(groupId);
     setWorkspaceMode("community");
     setAttendance([]);
     setDraftResult(null);
-  }, [groups, setActiveGroupId, setWorkspaceMode, setAttendance, setDraftResult]);
+  }, [groups, savePersonalMatchSnapshot, setActiveGroupId, setWorkspaceMode, setAttendance, setDraftResult]);
 
   const selectPersonalWorkspace = useCallback(() => {
     setWorkspaceMode("personal");
-    setAttendance([]);
-    setDraftResult(null);
+    restorePersonalMatchSnapshot();
+    setCommunityMatchUpdatedAt(null);
     setCurrentStepState("pool");
-  }, [setWorkspaceMode, setAttendance, setDraftResult, setCurrentStepState]);
+  }, [setWorkspaceMode, restorePersonalMatchSnapshot, setCurrentStepState]);
 
   const updateGroupMemberRole = useCallback(async (
     userId: string,
@@ -817,24 +876,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [deletePlayers]
   );
 
+  const persistCommunityMatchState = useCallback(async (overrides: {
+    teamConfig?: TeamConfig;
+    attendance?: string[];
+    draftMode?: DraftMode;
+    draftResult?: DraftResult | null;
+  } = {}) => {
+    if (workspaceMode !== "community" || !activeGroup?.id || !user?.id || !canManageMatch) return;
+    const { error } = await supabase.from("community_match_states").upsert({
+      group_id: activeGroup.id,
+      team_config: overrides.teamConfig ?? teamConfig,
+      attendance: overrides.attendance ?? attendance,
+      draft_mode: overrides.draftMode ?? draftMode,
+      draft_result: overrides.draftResult === undefined ? draftResult : overrides.draftResult,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "group_id" });
+    if (error) console.error("Community match save error:", error.message);
+  }, [workspaceMode, activeGroup?.id, user?.id, canManageMatch, teamConfig, attendance, draftMode, draftResult]);
+
   const toggleAttendance = useCallback((id: string) => {
+    if (!canManageMatch) return;
     const player = players.find((item) => item.id === id);
     if (!player || player.ratingStatus === "pending") return;
-    setAttendance((prev) =>
-      prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
-    );
-  }, [players, setAttendance]);
+    setAttendance((prev) => {
+      const next = prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id];
+      void persistCommunityMatchState({ attendance: next, draftResult: null });
+      return next;
+    });
+    setDraftResult(null);
+  }, [canManageMatch, players, setAttendance, setDraftResult, persistCommunityMatchState]);
 
   const selectAllAttendance = useCallback(() => {
+    if (!canManageMatch) return;
     setPlayers((current) => {
-      setAttendance(current.filter((p) => p.ratingStatus !== "pending").map((p) => p.id));
+      const next = current.filter((p) => p.ratingStatus !== "pending").map((p) => p.id);
+      setAttendance(next);
+      setDraftResult(null);
+      void persistCommunityMatchState({ attendance: next, draftResult: null });
       return current;
     });
-  }, [setPlayers, setAttendance]);
+  }, [canManageMatch, setPlayers, setAttendance, setDraftResult, persistCommunityMatchState]);
 
-  const clearAttendance = useCallback(() => setAttendance([]), [setAttendance]);
+  const clearAttendance = useCallback(() => {
+    if (!canManageMatch) return;
+    setAttendance([]);
+    setDraftResult(null);
+    void persistCommunityMatchState({ attendance: [], draftResult: null });
+  }, [canManageMatch, setAttendance, setDraftResult, persistCommunityMatchState]);
 
   const setTeamConfig = useCallback((partial: Partial<TeamConfig>) => {
+    if (!canManageMatch) return;
     setTeamConfigState((prev) => {
       const teamSize = partial.teamSize ?? prev.teamSize;
       const formation =
@@ -842,15 +934,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         (partial.teamSize
           ? getFormationForTeamSize(partial.teamSize).formation
           : prev.formation);
-      return { ...prev, ...partial, teamSize, formation };
+      const next = { ...prev, ...partial, teamSize, formation };
+      void persistCommunityMatchState({ teamConfig: next, draftResult: null });
+      return next;
     });
-  }, [setTeamConfigState]);
+    setDraftResult(null);
+  }, [canManageMatch, setTeamConfigState, setDraftResult, persistCommunityMatchState]);
+
+  const setDraftMode = useCallback((mode: DraftMode) => {
+    if (!canManageMatch) return;
+    setDraftModeState(mode);
+    setDraftResult(null);
+    void persistCommunityMatchState({ draftMode: mode, draftResult: null });
+  }, [canManageMatch, setDraftModeState, setDraftResult, persistCommunityMatchState]);
 
   const setCurrentStep = useCallback((step: StepType) => {
     setCurrentStepState(step);
   }, [setCurrentStepState]);
 
   const generateDraft = useCallback(() => {
+    if (!canManageMatch) return;
     const attending = players.filter((p) => p.ratingStatus !== "pending" && attendance.includes(p.id));
     if (attending.length === 0) return;
 
@@ -860,21 +963,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     setDraftResult({ ...result });
+    void persistCommunityMatchState({ draftResult: { ...result } });
     setCurrentStepState("squad");
-  }, [players, attendance, teamConfig, draftMode, draftResult, setDraftResult, setCurrentStepState]);
+  }, [canManageMatch, players, attendance, teamConfig, draftMode, draftResult, setDraftResult, setCurrentStepState, persistCommunityMatchState]);
 
   const swapDraftPlayers = useCallback(
     (playerIdA: string, playerIdB: string) => {
+      if (!canManageMatch) return;
       setDraftResult((prev) =>
-        prev ? { ...swapPlayers(prev, playerIdA, playerIdB) } : null
+        prev ? (() => {
+          const next = { ...swapPlayers(prev, playerIdA, playerIdB) };
+          void persistCommunityMatchState({ draftResult: next });
+          return next;
+        })() : null
       );
     },
-    [setDraftResult]
+    [canManageMatch, setDraftResult, persistCommunityMatchState]
   );
 
   const clearDraft = useCallback(() => {
+    if (!canManageMatch) return;
     setDraftResult(null);
-  }, [setDraftResult]);
+    void persistCommunityMatchState({ draftResult: null });
+  }, [canManageMatch, setDraftResult, persistCommunityMatchState]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -914,6 +1025,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       groupMembers,
       isGroupsLoading,
       canEditPlayers,
+      canManageMatch,
+      communityMatchUpdatedAt,
       workspaceMode,
       selectPersonalWorkspace,
       createGroup,
@@ -959,6 +1072,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       groupMembers,
       isGroupsLoading,
       canEditPlayers,
+      canManageMatch,
+      communityMatchUpdatedAt,
       workspaceMode,
       selectPersonalWorkspace,
       createGroup,

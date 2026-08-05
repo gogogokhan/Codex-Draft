@@ -27,6 +27,7 @@ export function AttendanceList() {
     setDraftMode,
     draftResult,
     generateDraft,
+    canManageMatch,
   } = useApp();
 
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
@@ -146,7 +147,8 @@ export function AttendanceList() {
   };
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
+    <section className="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5">
+      {!canManageMatch && <><div className="relative z-30 mb-4 rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-3 text-xs font-bold text-violet-100">Salt Okunur — Oyuncu seçimini ve takım oluşturmayı yalnızca Kurucu Admin, Admin ve Moderatör yönetebilir.</div><div className="absolute inset-0 z-20 cursor-not-allowed rounded-2xl bg-transparent" aria-hidden="true" /></>}
       {/* BAŞLIK VE HIZLI SEÇİM BUTONLARI */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

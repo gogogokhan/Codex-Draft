@@ -12,7 +12,7 @@ interface HeaderProps {
 export function Header({ onOpenAddPlayerModal }: HeaderProps) {
   const {
     currentStep, setCurrentStep, isAuthenticated, user, logout, players,
-    setWarningMessage, canEditPlayers,
+    setWarningMessage, canEditPlayers, draftResult,
   } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -179,11 +179,18 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
               <button
                 type="button"
-                disabled
+                disabled={!draftResult}
+                onClick={() => {
+                  if (!draftResult) return;
+                  setWarningMessage(null);
+                  setCurrentStep("squad");
+                }}
                 className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                   currentStep === "squad"
                     ? "cursor-default bg-cyan-400 text-black font-black shadow-[0_0_12px_rgba(6,182,212,0.4)]"
-                    : "cursor-not-allowed border border-zinc-800 bg-zinc-900/40 text-zinc-600"
+                    : draftResult
+                      ? "cursor-pointer border border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200"
+                      : "cursor-not-allowed border border-zinc-800 bg-zinc-900/40 text-zinc-600"
                 }`}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />

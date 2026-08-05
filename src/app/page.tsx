@@ -15,7 +15,7 @@ import { CommunityHub } from "@/components/community/CommunityHub";
 export default function HomePage() {
   const {
     currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
-    canEditPlayers, workspaceMode, activeGroup,
+    canEditPlayers, canManageMatch, workspaceMode, activeGroup,
   } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -78,7 +78,7 @@ export default function HomePage() {
           {/* MAÇ KURUCU - 3. ADIM: Kadro & Saha + WhatsApp Dışa Aktar */}
           {currentStep === "squad" && (
             <div className="space-y-6">
-              <PitchView onPlayerClick={handleOpenEditModal} />
+              <PitchView onPlayerClick={canManageMatch ? handleOpenEditModal : undefined} />
               <WhatsAppExport />
             </div>
           )}

@@ -57,6 +57,16 @@ export interface DraftResult {
   teamBPower: number;
 }
 
+export interface CommunityMatchState {
+  group_id: string;
+  team_config: TeamConfig;
+  attendance: string[];
+  draft_mode: DraftMode;
+  draft_result: DraftResult | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
 export interface FormationSlots {
   GK: number;
   DEF: number;

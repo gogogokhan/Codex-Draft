@@ -41,14 +41,16 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
     draftMode,
     attendance = [],
     setActiveTab,
+    canManageMatch,
+    communityMatchUpdatedAt,
   } = useApp();
 
   // Eğer ilk kez bu sayfaya gelindiyse ve yoklamadaki oyuncular seçiliyse otomatik draft oluştur
   useEffect(() => {
-    if (!draftResult && attendance.length > 0) {
+    if (canManageMatch && !draftResult && attendance.length > 0) {
       generateDraft();
     }
-  }, [draftResult, attendance.length, generateDraft]);
+  }, [canManageMatch, draftResult, attendance.length, generateDraft]);
 
   // Draft motorunun kesin atamalarını saha gruplarına dönüştürür.
   const arrangePlayersByFormation = (playersList: any[]) => {
@@ -76,7 +78,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
           Yoklama listesinden yeterli sayıda oyuncu seçtikten sonra takımları otomatik olarak dengeli şekilde oluşturabilirsiniz.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <button
+          {canManageMatch && <><button
             type="button"
             onClick={() => setActiveTab && setActiveTab('attendance')}
             className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-5 py-2.5 text-xs font-bold text-zinc-200 hover:bg-zinc-700 transition"
@@ -93,7 +95,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
           >
             <Zap className="h-4 w-4 fill-black" />
             <span>Takımları Şimdi Oluştur</span>
-          </button>
+          </button></>}
         </div>
       </div>
     );
@@ -317,12 +319,13 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
             <p className="text-[11px] text-zinc-400 mt-0.5">
               {draftModePresentation.description}
             </p>
+            {communityMatchUpdatedAt && <p className="mt-1 text-[10px] font-bold text-violet-300">Son güncelleme: {new Date(communityMatchUpdatedAt).toLocaleString("tr-TR")}</p>}
           </div>
         </div>
 
         {/* YENİDEN OLUŞTUR VE DÜZENLE BUTONLARI */}
         <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <button
+          {canManageMatch && <><button
             type="button"
             onClick={() => setActiveTab && setActiveTab('attendance')}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-800 transition"
@@ -338,7 +341,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
           >
             <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
             <span>Yeniden Dengelle</span>
-          </button>
+          </button></>}
         </div>
       </div>
 
