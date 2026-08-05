@@ -4,11 +4,16 @@ import { useState } from "react";
 import { ChevronDown, CircleDot, Menu, Monitor, NotebookTabs, Shield, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
-export function WorkspaceSidebar() {
+interface WorkspaceSidebarProps {
+  onOpenCommunities: () => void;
+}
+
+export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
   const {
     groups,
     activeGroup,
     workspaceMode,
+    currentStep,
     isAuthenticated,
     selectPersonalWorkspace,
     selectGroup,
@@ -30,10 +35,12 @@ export function WorkspaceSidebar() {
     setMobileOpen(false);
   };
 
-  const openCommunityManagement = () => {
-    setCurrentStep("community");
-    setMobileOpen(false);
+  const toggleCommunities = () => {
+    setCommunitiesOpen((open) => !open);
+    onOpenCommunities();
   };
+
+  const isCommunityActive = currentStep === "community" || workspaceMode === "community";
 
   const content = (
     <div className="flex h-full flex-col bg-[#05070b]">
@@ -47,35 +54,28 @@ export function WorkspaceSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2">
+      <nav className="flex-1 overflow-y-auto py-4 lg:pt-[18vh]">
         <button
           type="button"
           onClick={choosePersonal}
-          className={`flex h-12 w-full items-center gap-4 border-l-2 px-3 text-left text-sm font-black uppercase tracking-wide transition ${workspaceMode === "personal" ? "border-cyan-400 bg-[#1b3039] text-white" : "border-transparent text-zinc-300 hover:bg-white/5 hover:text-white"}`}
+          className={`flex h-12 w-full items-center gap-4 border-l-2 px-3 text-left text-sm font-black uppercase tracking-wide transition-all duration-200 ${workspaceMode === "personal" && currentStep !== "community" ? "border-cyan-300 bg-gradient-to-r from-[#173746] to-[#0a1d2c] text-white shadow-[inset_0_0_22px_rgba(0,210,255,0.12),0_0_16px_rgba(0,210,255,0.08)]" : "border-transparent text-zinc-300 hover:border-cyan-400/70 hover:bg-gradient-to-r hover:from-[#102d3c] hover:to-[#081724] hover:text-cyan-100 hover:shadow-[inset_0_0_18px_rgba(0,210,255,0.1)]"}`}
         >
           <Monitor className="h-4 w-4 shrink-0 text-cyan-200" />
           <span>Kişisel Alan</span>
         </button>
 
-        <div className={`flex h-11 border-l-2 transition ${workspaceMode === "community" ? "border-cyan-400 bg-[#17282f]" : "border-transparent hover:bg-white/5"}`}>
-          <button
-            type="button"
-            onClick={openCommunityManagement}
-            className="flex min-w-0 flex-1 items-center gap-4 px-3 text-left text-sm font-black uppercase tracking-wide text-white"
-          >
+        <button
+          type="button"
+          onClick={toggleCommunities}
+          aria-expanded={communitiesOpen}
+          className={`flex h-11 w-full items-center border-l-2 px-3 text-left text-sm font-black uppercase tracking-wide transition-all duration-200 ${isCommunityActive ? "border-cyan-300 bg-gradient-to-r from-[#173746] to-[#0a1d2c] text-white shadow-[inset_0_0_22px_rgba(0,210,255,0.12),0_0_16px_rgba(0,210,255,0.08)]" : "border-transparent text-zinc-300 hover:border-cyan-400/70 hover:bg-gradient-to-r hover:from-[#102d3c] hover:to-[#081724] hover:text-cyan-100 hover:shadow-[inset_0_0_18px_rgba(0,210,255,0.1)]"}`}
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-4">
             <NotebookTabs className="h-4 w-4 shrink-0 text-cyan-100" />
             <span>Topluluk</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setCommunitiesOpen((open) => !open)}
-            className="flex w-11 items-center justify-center text-cyan-100 transition hover:bg-white/5"
-            aria-label={communitiesOpen ? "Topluluk listesini kapat" : "Topluluk listesini aç"}
-            aria-expanded={communitiesOpen}
-          >
-            <ChevronDown className={`h-4 w-4 transition-transform ${communitiesOpen ? "rotate-0" : "-rotate-90"}`} />
-          </button>
-        </div>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-cyan-100 transition-transform ${communitiesOpen ? "rotate-0" : "-rotate-90"}`} />
+        </button>
 
         {communitiesOpen && <div className="bg-[#20343c] py-1">
           {groups.map((group) => {
@@ -85,7 +85,7 @@ export function WorkspaceSidebar() {
                 key={group.id}
                 type="button"
                 onClick={() => chooseCommunity(group.id)}
-                className={`flex min-h-8 w-full items-center gap-4 border-l-2 py-1.5 pl-5 pr-3 text-left transition ${isActive ? "border-cyan-300 bg-cyan-300/10 text-white" : "border-transparent text-zinc-100 hover:bg-white/5"}`}
+                className={`flex min-h-8 w-full items-center gap-4 border-l-2 py-1.5 pl-5 pr-3 text-left transition-all ${isActive ? "border-cyan-200 bg-gradient-to-r from-cyan-400/20 to-cyan-950/20 text-white shadow-[inset_0_0_16px_rgba(0,210,255,0.1)]" : "border-transparent text-zinc-100 hover:border-cyan-400/60 hover:bg-cyan-400/10 hover:text-cyan-100"}`}
               >
                 <CircleDot className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-cyan-200" : "text-cyan-400/65"}`} />
                 <span className="truncate text-xs font-black uppercase tracking-wide">{group.name}</span>

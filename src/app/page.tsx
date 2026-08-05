@@ -15,11 +15,25 @@ import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 
 export default function HomePage() {
   const {
-    currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
+    currentStep, setCurrentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
     canEditPlayers, canManageMatch, workspaceMode, activeGroup, isAuthenticated,
   } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
+  const [communityInitialView, setCommunityInitialView] = useState<"communities" | "settings">("communities");
+  const [communityNavigationKey, setCommunityNavigationKey] = useState(0);
+
+  const openCommunities = () => {
+    setCommunityInitialView("communities");
+    setCommunityNavigationKey((key) => key + 1);
+    setCurrentStep("community");
+  };
+
+  const openCommunitySettings = () => {
+    setCommunityInitialView("settings");
+    setCommunityNavigationKey((key) => key + 1);
+    setCurrentStep("community");
+  };
 
   const handleOpenAddModal = () => {
     setEditingPlayer(null);
@@ -47,14 +61,14 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <WorkspaceSidebar />
+      <WorkspaceSidebar onOpenCommunities={openCommunities} />
       <Header onOpenAddPlayerModal={handleOpenAddModal} />
 
       <div className={isAuthenticated ? "lg:pl-60" : ""}>
       <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"}`}>
         <AuthGuard>
           {currentStep === "community" ? (
-            <CommunityHub />
+            <CommunityHub key={communityNavigationKey} initialView={communityInitialView} />
           ) : (
           <>
           {/* OYUNCU HAVUZU */}
@@ -67,6 +81,7 @@ export default function HomePage() {
               onDeletePlayer={canEditPlayers ? deletePlayer : undefined}
               onDeletePlayers={canEditPlayers ? deletePlayers : undefined}
               onClearAllPlayers={canEditPlayers ? handleClearAllPlayers : undefined}
+              onOpenCommunitySettings={workspaceMode === "community" && activeGroup ? openCommunitySettings : undefined}
             />
           )}
 

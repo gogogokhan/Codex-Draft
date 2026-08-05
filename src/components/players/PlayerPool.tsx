@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ArrowUpDown, Trash2, AlertTriangle, Plus, ListChecks, CheckCheck, X } from 'lucide-react';
+import { ArrowUpDown, Trash2, AlertTriangle, Plus, ListChecks, CheckCheck, Settings, X } from 'lucide-react';
 import { PlayerCard } from './PlayerCard';
 
 const SORT_OPTIONS = [
@@ -23,6 +23,7 @@ interface PlayerPoolProps {
   onEditPlayer?: (player: any) => void;
   onDeletePlayer?: (playerId: string) => void;
   onDeletePlayers?: (playerIds: string[]) => Promise<void>;
+  onOpenCommunitySettings?: () => void;
 }
 
 // Mevki Sıralama Katmanı (GK: 1, DEF: 2, MID: 3, FWD: 4)
@@ -159,6 +160,7 @@ export function PlayerPool({
   onEditPlayer,
   onDeletePlayer,
   onDeletePlayers,
+  onOpenCommunitySettings,
 }: PlayerPoolProps) {
   const [sortOption, setSortOption] = useState<string>('newest');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -370,6 +372,16 @@ export function PlayerPool({
                   className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900 border border-red-500/40 hover:border-red-400 rounded-xl text-xs font-black text-red-200 uppercase tracking-wider flex items-center gap-2 transition shadow-[0_0_15px_rgba(239,68,68,0.15)] cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4 text-red-400" /> Tümünü Sil
+                </button>
+              )}
+
+              {onOpenCommunitySettings && (
+                <button
+                  type="button"
+                  onClick={onOpenCommunitySettings}
+                  className="flex items-center gap-2 rounded-xl border border-amber-300/45 bg-gradient-to-r from-[#172b4d] to-[#101d39] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-amber-200 shadow-[0_0_15px_rgba(245,190,70,0.12)] transition hover:border-amber-200 hover:text-amber-100 hover:shadow-[0_0_20px_rgba(0,210,255,0.18)]"
+                >
+                  <Settings className="h-4 w-4" /> Ayarlar
                 </button>
               )}
             </>

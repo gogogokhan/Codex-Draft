@@ -26,6 +26,10 @@ type View = "communities" | "overview" | "members" | "settings";
 type FormMode = "create" | "join" | null;
 type PendingMemberRemoval = { userId: string; displayName: string } | null;
 
+interface CommunityHubProps {
+  initialView?: View;
+}
+
 const ROLE_LABELS: Record<GroupRole, string> = {
   owner: "Kurucu Admin",
   admin: "Admin",
@@ -33,7 +37,7 @@ const ROLE_LABELS: Record<GroupRole, string> = {
   member: "Üye",
 };
 
-export function CommunityHub() {
+export function CommunityHub({ initialView = "communities" }: CommunityHubProps) {
   const {
     groups,
     activeGroup,
@@ -52,7 +56,7 @@ export function CommunityHub() {
     selectPersonalWorkspace,
     user,
   } = useApp();
-  const [view, setView] = useState<View>("communities");
+  const [view, setView] = useState<View>(initialView);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [value, setValue] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -70,6 +74,10 @@ export function CommunityHub() {
     setConfirmLeave(false);
     setPendingMemberRemoval(null);
   }, [activeGroup?.id, activeGroup?.name]);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
 
   useEffect(() => {
     if (!pendingMemberRemoval) return;
