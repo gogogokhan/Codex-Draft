@@ -1,11 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDown, CircleDot, Menu, Monitor, NotebookTabs, Shield, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
 interface WorkspaceSidebarProps {
   onOpenCommunities: () => void;
+}
+
+function CodexDraftWordmark() {
+  const gradientId = useId().replace(/:/g, "");
+
+  return (
+    <svg
+      viewBox="0 0 232 32"
+      role="img"
+      aria-label="Codex Draft"
+      className="h-7 w-full max-w-[184px] overflow-visible drop-shadow-[0_0_10px_rgba(34,211,238,0.22)]"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#f8fbff" />
+          <stop offset="48%" stopColor="#a5f3fc" />
+          <stop offset="100%" stopColor="#22d3ee" />
+        </linearGradient>
+      </defs>
+      <g
+        fill="none"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M15 4H7C3.7 4 2 6.2 2 9.5v13C2 25.8 3.7 28 7 28h8" />
+        <rect x="22" y="4" width="18" height="24" rx="5" />
+        <path d="M47 4v24h8c5.8 0 9-3.5 9-9V13c0-5.5-3.2-9-9-9h-8Z" />
+        <path d="M86 4H71v24h15M71 16h12" />
+        <path d="M93 4l17 24M110 4 93 28" />
+
+        <path d="M121 4v24h8c5.8 0 9-3.5 9-9V13c0-5.5-3.2-9-9-9h-8Z" />
+        <path d="M145 28V4h10c4.5 0 7 2.5 7 6s-2.5 6-7 6h-10M154 16l9 12" />
+        <path d="M168 28 177 4l9 24M172 19h10" />
+        <path d="M193 28V4h15M193 16h12" />
+        <path d="M214 4h16M222 4v24" />
+      </g>
+    </svg>
+  );
 }
 
 export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
@@ -53,7 +93,7 @@ export function WorkspaceSidebar({ onOpenCommunities }: WorkspaceSidebarProps) {
           <Shield className="relative h-5 w-5 fill-cyan-300/10" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-base font-black tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.14)]">Codex Draft</p>
+          <CodexDraftWordmark />
           <p className="mt-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-200/45">Akıllı Takım Kurucu</p>
         </div>
       </div>
