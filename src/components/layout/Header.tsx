@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus, UsersRound } from "lucide-react";
+import { Users, Settings, LayoutGrid, Shield, Database, Sparkles, LogIn, LogOut, User, Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import AuthModal from "@/components/auth/AuthModal";
 
@@ -12,7 +12,7 @@ interface HeaderProps {
 export function Header({ onOpenAddPlayerModal }: HeaderProps) {
   const {
     currentStep, setCurrentStep, isAuthenticated, user, logout, players,
-    setWarningMessage, canEditPlayers, draftResult, workspaceMode, activeGroup, activeGroupRole,
+    setWarningMessage, canEditPlayers, draftResult, workspaceMode, activeGroupRole,
   } = useApp();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -35,11 +35,11 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl">
+      <header className={`sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl ${isAuthenticated ? "lg:pl-60" : ""}`}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           
           {/* 1. SOL ÜST LOGO */}
-          <div className="flex items-center gap-3">
+          <div className={`flex flex-1 items-center gap-3 ${isAuthenticated ? "pl-11 lg:invisible lg:pl-0" : ""}`}>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
               <Shield className="h-5 w-5 fill-cyan-400/20 text-cyan-400" />
             </div>
@@ -82,12 +82,7 @@ export function Header({ onOpenAddPlayerModal }: HeaderProps) {
           </div>
 
           {/* 3. SAĞ ALAN */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {isAuthenticated && (
-              <button type="button" onClick={() => { setWarningMessage(null); setCurrentStep("community"); }} className={`hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition sm:flex ${currentStep === "community" ? "border-violet-400/45 bg-violet-400/20 text-violet-100" : "border-violet-400/30 bg-violet-400/10 text-violet-200 hover:bg-violet-400/20"}`}>
-                <UsersRound className="h-3.5 w-3.5 shrink-0" /><span>{workspaceMode === "community" && activeGroup ? `${activeGroup.name} · ${activeGroupRole === "member" ? "Üye" : "Yönetici"}` : "Kişisel Alan"}</span>
-              </button>
-            )}
+          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
             {onOpenAddPlayerModal && canEditPlayers && isPool && (
               <button
                 type="button"

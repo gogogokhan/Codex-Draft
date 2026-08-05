@@ -11,11 +11,12 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { PlayerModal } from "@/components/players/PlayerModal";
 import { useApp } from "@/context/AppContext";
 import { CommunityHub } from "@/components/community/CommunityHub";
+import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 
 export default function HomePage() {
   const {
     currentStep, players, addPlayer, updatePlayer, deletePlayer, deletePlayers,
-    canEditPlayers, canManageMatch, workspaceMode, activeGroup,
+    canEditPlayers, canManageMatch, workspaceMode, activeGroup, isAuthenticated,
   } = useApp();
   const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -46,11 +47,11 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
+      <WorkspaceSidebar />
       <Header onOpenAddPlayerModal={handleOpenAddModal} />
 
-      <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${
-        currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"
-      }`}>
+      <div className={isAuthenticated ? "lg:pl-60" : ""}>
+      <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"}`}>
         <AuthGuard>
           {currentStep === "community" ? (
             <CommunityHub />
@@ -86,6 +87,7 @@ export default function HomePage() {
           )}
         </AuthGuard>
       </main>
+      </div>
 
       {/* OYUNCU EKLEME / DÜZENLEME MODALI */}
       <PlayerModal
