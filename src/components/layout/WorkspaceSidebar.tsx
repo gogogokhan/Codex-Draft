@@ -13,10 +13,10 @@ function CodexDraftWordmark() {
 
   return (
     <svg
-      viewBox="0 0 232 32"
+      viewBox="0 0 8943 727"
       role="img"
       aria-label="Codex Draft"
-      className="h-7 w-full max-w-[184px] overflow-visible drop-shadow-[0_0_10px_rgba(34,211,238,0.22)]"
+      className="h-6 w-full max-w-[190px] overflow-visible drop-shadow-[0_0_10px_rgba(34,211,238,0.22)]"
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -25,24 +25,17 @@ function CodexDraftWordmark() {
           <stop offset="100%" stopColor="#22d3ee" />
         </linearGradient>
       </defs>
-      <g
-        fill="none"
-        stroke={`url(#${gradientId})`}
-        strokeWidth="4.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M15 4H7C3.7 4 2 6.2 2 9.5v13C2 25.8 3.7 28 7 28h8" />
-        <rect x="22" y="4" width="18" height="24" rx="5" />
-        <path d="M47 4v24h8c5.8 0 9-3.5 9-9V13c0-5.5-3.2-9-9-9h-8Z" />
-        <path d="M86 4H71v24h15M71 16h12" />
-        <path d="M93 4l17 24M110 4 93 28" />
-
-        <path d="M121 4v24h8c5.8 0 9-3.5 9-9V13c0-5.5-3.2-9-9-9h-8Z" />
-        <path d="M145 28V4h10c4.5 0 7 2.5 7 6s-2.5 6-7 6h-10M154 16l9 12" />
-        <path d="M168 28 177 4l9 24M172 19h10" />
-        <path d="M193 28V4h15M193 16h12" />
-        <path d="M214 4h16M222 4v24" />
+      <g fill={`url(#${gradientId})`} transform="translate(0 727) scale(1 -1)">
+        <path d="M789 0V127H395C264 127 169 228 169 365C169 503 265 600 395 600H789V727H395C192 727 42 585 42 371C42 160 192 0 395 0Z" />
+        <path transform="translate(829)" d="M572 0C779 0 928 160 928 371C928 582 782 727 572 727H395C192 727 42 585 42 371C42 160 192 0 395 0ZM395 127C264 127 169 228 169 365C169 503 265 600 395 600H572C706 600 801 502 801 365C801 228 706 127 572 127Z" />
+        <path transform="translate(1797)" d="M484 0C689 0 838 160 838 371C838 582 689 727 484 727H63V0ZM189 127V600H484C615 600 711 502 711 365C711 228 615 127 484 127Z" />
+        <path transform="translate(2676)" d="M713 0V127H189V600H712V727H63V0ZM685 316V423H282V316Z" />
+        <path transform="translate(3435)" d="M972 0 578 378 940 727H775L502 458L225 727H50L412 378L22 0H187L489 297L794 0Z" />
+        <path transform="translate(4729)" d="M484 0C689 0 838 160 838 371C838 582 689 727 484 727H63V0ZM189 127V600H484C615 600 711 502 711 365C711 228 615 127 484 127Z" />
+        <path transform="translate(5608)" d="M918 0 699 221C793 257 849 342 849 462C849 624 751 727 585 727H63V0H189V600H585C672 600 724 554 724 460C724 366 676 314 585 314H282V202H554L738 0Z" />
+        <path transform="translate(6529)" d="M974 0 555 696C540 721 522 737 494 737C466 737 447 721 432 696L14 0H159L489 558L651 286H428L368 183H712L821 0Z" />
+        <path transform="translate(7518)" d="M189 0V600H680V727H63V0ZM650 301V412H282V301Z" />
+        <path transform="translate(8223)" d="M423 0V600H699V727H20V600H296V0Z" />
       </g>
     </svg>
   );
