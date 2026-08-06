@@ -22,7 +22,8 @@ export default function HomePage() {
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
   const [communityInitialView, setCommunityInitialView] = useState<"communities" | "settings">("communities");
   const [communityNavigationKey, setCommunityNavigationKey] = useState(0);
-  const isWorkspacePage = currentStep === "pool" || currentStep === "community";
+  const isWideContentPage =
+    currentStep === "pool" || currentStep === "community" || currentStep === "attendance";
 
   const openCommunities = () => {
     setCommunityInitialView("communities");
@@ -69,7 +70,7 @@ export default function HomePage() {
       <main className={`px-4 py-6 sm:px-6 sm:py-8 ${
         currentStep === "squad"
           ? "mx-auto max-w-[1800px]"
-          : isWorkspacePage
+          : isWideContentPage
             ? "w-full max-w-none lg:px-14"
             : "mx-auto max-w-7xl"
       }`}>

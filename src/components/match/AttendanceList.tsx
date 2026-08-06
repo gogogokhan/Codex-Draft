@@ -308,7 +308,7 @@ export function AttendanceList() {
 
       {/* OYUNCU KARTLARI GRİDİ */}
       {pendingPlayerCount > 0 && <p className="mb-3 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-200">Rating bilgisi bekleyen {pendingPlayerCount} oyuncu takım seçimine dahil edilmedi.</p>}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-[repeat(auto-fill,216px)] gap-x-5 gap-y-6">
         {eligiblePlayers.map((player: any) => (
           <PlayerCard
             key={player.id}
