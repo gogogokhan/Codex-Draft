@@ -313,6 +313,7 @@ export function AttendanceList() {
           <PlayerCard
             key={player.id}
             player={player}
+            reduced
             selectable={canManageMatch}
             selected={attendance.includes(player.id)}
             onClick={canManageMatch ? () => handlePlayerClick(player.id) : undefined}

@@ -15,6 +15,7 @@ interface PositionItem {
 interface PlayerCardProps {
   player: any;
   compact?: boolean;
+  reduced?: boolean;
   isAdmin?: boolean;
   selected?: boolean;
   selectable?: boolean;
@@ -74,6 +75,7 @@ const getPositionLabel = (value: unknown): string => {
 export function PlayerCard({
   player,
   compact = false,
+  reduced = false,
   isAdmin = true,
   selected = false,
   selectable = false,
@@ -327,9 +329,15 @@ export function PlayerCard({
       ) : (
         <div 
           onClick={handleClick}
-          className="relative inline-block cursor-pointer select-none"
+          className={
+            reduced
+              ? "relative inline-flex h-[324px] w-[216px] cursor-pointer select-none items-center justify-center"
+              : "relative inline-block cursor-pointer select-none"
+          }
         >
-          {CardContent}
+          <div className={reduced ? "origin-center scale-90" : ""}>
+            {CardContent}
+          </div>
         </div>
       )}
 

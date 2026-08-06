@@ -447,6 +447,7 @@ export function PlayerPool({
             >
               <PlayerCard
                 player={playerItem}
+                reduced
                 selectable={isSelectionMode}
                 selected={selectedPlayerIds.has(playerItem.id)}
                 isAdmin={!isSelectionMode}

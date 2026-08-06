@@ -20,9 +20,9 @@ function CodexDraftWordmark() {
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#f8fbff" />
+          <stop offset="0%" stopColor="#22d3ee" />
           <stop offset="48%" stopColor="#a5f3fc" />
-          <stop offset="100%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#f8fbff" />
         </linearGradient>
       </defs>
       <g fill={`url(#${gradientId})`} transform="translate(0 727) scale(1 -1)">

@@ -22,6 +22,7 @@ export default function HomePage() {
   const [editingPlayer, setEditingPlayer] = useState<any>(null);
   const [communityInitialView, setCommunityInitialView] = useState<"communities" | "settings">("communities");
   const [communityNavigationKey, setCommunityNavigationKey] = useState(0);
+  const isWorkspacePage = currentStep === "pool" || currentStep === "community";
 
   const openCommunities = () => {
     setCommunityInitialView("communities");
@@ -65,7 +66,13 @@ export default function HomePage() {
       <Header />
 
       <div className={isAuthenticated ? "lg:pl-72" : ""}>
-      <main className={`mx-auto px-4 py-6 sm:px-6 sm:py-8 ${currentStep === "squad" ? "max-w-[1800px]" : "max-w-7xl"}`}>
+      <main className={`px-4 py-6 sm:px-6 sm:py-8 ${
+        currentStep === "squad"
+          ? "mx-auto max-w-[1800px]"
+          : isWorkspacePage
+            ? "w-full max-w-none lg:px-14"
+            : "mx-auto max-w-7xl"
+      }`}>
         <AuthGuard>
           {currentStep === "community" ? (
             <CommunityHub key={communityNavigationKey} initialView={communityInitialView} />
