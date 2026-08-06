@@ -392,15 +392,15 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
         </div>
 
         <div className="absolute inset-0 z-20">
-          <PitchLine players={teamA.gk} className="top-0" />
-          <PitchLine players={teamA.def} className="top-[12.5%]" />
-          <PitchLine players={teamA.mid} className="top-[25%]" />
-          <PitchLine players={teamA.fwd} className="top-[37.5%]" />
+          <PitchLine players={teamA.gk} className="top-[0px]" />
+          <PitchLine players={teamA.def} className="top-[138px]" />
+          <PitchLine players={teamA.mid} className="top-[275px]" />
+          <PitchLine players={teamA.fwd} className="top-[413px]" />
 
-          <PitchLine players={teamB.fwd} className="top-[50.5%]" />
-          <PitchLine players={teamB.mid} className="top-[63%]" />
-          <PitchLine players={teamB.def} className="top-[75.5%]" />
-          <PitchLine players={teamB.gk} className="top-[88%]" />
+          <PitchLine players={teamB.fwd} className="top-[529px]" />
+          <PitchLine players={teamB.mid} className="top-[667px]" />
+          <PitchLine players={teamB.def} className="top-[804px]" />
+          <PitchLine players={teamB.gk} className="top-[942px]" />
         </div>
       </div>
     );
