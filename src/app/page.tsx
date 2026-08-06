@@ -24,6 +24,7 @@ export default function HomePage() {
   const [communityNavigationKey, setCommunityNavigationKey] = useState(0);
   const isWideContentPage =
     currentStep === "pool" || currentStep === "community" || currentStep === "attendance";
+  const isCommunityReadOnly = workspaceMode === "community" && !canEditPlayers;
 
   const openCommunities = () => {
     setCommunityInitialView("communities");
@@ -85,7 +86,7 @@ export default function HomePage() {
               players={players}
               title={workspaceMode === "community" && activeGroup ? `${activeGroup.name} Oyuncu Havuzu` : "Oyuncu Havuzu"}
               onAddPlayerClick={canEditPlayers ? handleOpenAddModal : undefined}
-              onEditPlayer={canEditPlayers ? handleOpenEditModal : undefined}
+              onEditPlayer={canEditPlayers || isCommunityReadOnly ? handleOpenEditModal : undefined}
               onDeletePlayer={canEditPlayers ? deletePlayer : undefined}
               onDeletePlayers={canEditPlayers ? deletePlayers : undefined}
               onClearAllPlayers={canEditPlayers ? handleClearAllPlayers : undefined}
@@ -97,12 +98,14 @@ export default function HomePage() {
           {currentStep === "settings" && <TeamConfigPanel />}
 
           {/* MAÇ KURUCU - 2. ADIM: Oyuncu Seçimi (Yoklama) */}
-          {currentStep === "attendance" && <AttendanceList />}
+          {currentStep === "attendance" && (
+            <AttendanceList onPlayerClick={isCommunityReadOnly ? handleOpenEditModal : undefined} />
+          )}
 
           {/* MAÇ KURUCU - 3. ADIM: Kadro & Saha + WhatsApp Dışa Aktar */}
           {currentStep === "squad" && (
             <div className="space-y-6">
-              <PitchView onPlayerClick={canManageMatch ? handleOpenEditModal : undefined} />
+              <PitchView onPlayerClick={handleOpenEditModal} />
               <WhatsAppExport />
             </div>
           )}
@@ -114,9 +117,10 @@ export default function HomePage() {
 
       {/* OYUNCU EKLEME / DÜZENLEME MODALI */}
       <PlayerModal
-        isOpen={isAddPlayerModalOpen && canEditPlayers}
+        isOpen={isAddPlayerModalOpen && (canEditPlayers || isCommunityReadOnly)}
         initialPlayer={editingPlayer}
-        onSave={handleSavePlayer}
+        onSave={canEditPlayers ? handleSavePlayer : undefined}
+        readOnly={isCommunityReadOnly}
         onClose={() => {
           setIsAddPlayerModalOpen(false);
           setEditingPlayer(null);

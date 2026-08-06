@@ -14,8 +14,13 @@ import { PlayerCard } from "@/components/players/PlayerCard";
 import { useApp } from "@/context/AppContext";
 import { analyzeFormationCompatibility } from "@/lib/draftEngine";
 import { POSITION_LABELS } from "@/lib/positions";
+import type { Player } from "@/types";
 
-export function AttendanceList() {
+interface AttendanceListProps {
+  onPlayerClick?: (player: Player) => void;
+}
+
+export function AttendanceList({ onPlayerClick }: AttendanceListProps) {
   const {
     players,
     attendance = [],
@@ -316,7 +321,13 @@ export function AttendanceList() {
             reduced
             selectable={canManageMatch}
             selected={attendance.includes(player.id)}
-            onClick={canManageMatch ? () => handlePlayerClick(player.id) : undefined}
+            onClick={
+              canManageMatch
+                ? () => handlePlayerClick(player.id)
+                : onPlayerClick
+                  ? () => onPlayerClick(player)
+                  : undefined
+            }
           />
         ))}
       </div>

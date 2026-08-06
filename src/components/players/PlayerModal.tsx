@@ -23,6 +23,7 @@ export interface PlayerModalProps {
   player?: any;
   editingPlayer?: any;
   playerToEdit?: any;
+  readOnly?: boolean;
 }
 
 const POSITIONS = [
@@ -43,6 +44,7 @@ export function PlayerModal({
   player,
   editingPlayer,
   playerToEdit,
+  readOnly = false,
 }: PlayerModalProps) {
   const isModalOpen = Boolean(isOpen ?? open ?? show);
   const activePlayer = initialPlayer || player || editingPlayer || playerToEdit || null;
@@ -288,6 +290,7 @@ export function PlayerModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
     if (isSubmitting) return;
 
     if (!name.trim()) {
@@ -343,7 +346,7 @@ export function PlayerModal({
               {activePlayer ? <UserCheck className="w-5 h-5 stroke-[2.5]" /> : <UserPlus className="w-5 h-5 stroke-[2.5]" />}
             </div>
             <h2 className="text-base font-black tracking-wider text-[#F5D77F] uppercase">
-              {activePlayer ? 'Oyuncu Düzenle' : 'Yeni Oyuncu Ekle'}
+              {readOnly ? 'Oyuncu Detayı' : activePlayer ? 'Oyuncu Düzenle' : 'Yeni Oyuncu Ekle'}
             </h2>
           </div>
           <button
@@ -369,16 +372,17 @@ export function PlayerModal({
             </label>
             <input
               type="text"
-              autoFocus={!activePlayer}
+              autoFocus={!activePlayer && !readOnly}
               value={name}
               onChange={(e) => setName(e.target.value)}
+              readOnly={readOnly}
               placeholder="Örn: Ahmet Yılmaz"
-              className="w-full px-4 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm text-white placeholder-blue-300/40 focus:outline-none focus:border-[#00d2ff] transition font-medium"
+              className={`w-full px-4 py-3 bg-[#061127] border border-[#00d2ff]/30 rounded-xl text-sm text-white placeholder-blue-300/40 focus:outline-none transition font-medium ${readOnly ? "cursor-default text-cyan-50/85" : "focus:border-[#00d2ff]"}`}
             />
           </div>
 
           {/* Pozisyon Ekleme Alanı */}
-          <div>
+          {!readOnly && <div>
             <label className="block text-[11px] font-black uppercase tracking-wider text-[#F5D77F] mb-1.5">
               Pozisyon & Reyting
             </label>
@@ -421,7 +425,7 @@ export function PlayerModal({
             >
               <Plus className="w-4 h-4 stroke-[3]" /> Pozisyon Ekle
             </button>
-          </div>
+          </div>}
 
           {/* Eklenen Mevkiler Listesi */}
           {positions.length > 0 && (
@@ -442,9 +446,10 @@ export function PlayerModal({
                     <div className="flex items-center gap-2.5">
                       <button
                         type="button"
+                        disabled={readOnly}
                         onClick={() => handleSetMain(item.code)}
-                        title={item.isMain ? 'Ana Mevki' : 'Ana Mevki Yap'}
-                        className="p-1 rounded-lg hover:bg-blue-900/40 transition"
+                        title={item.isMain ? 'Ana Mevki' : readOnly ? 'Alternatif Mevki' : 'Ana Mevki Yap'}
+                        className={`p-1 rounded-lg transition ${readOnly ? "cursor-default" : "hover:bg-blue-900/40"}`}
                       >
                         <Star
                           className={`w-4 h-4 ${
@@ -467,18 +472,19 @@ export function PlayerModal({
                         value={item.rating || ''}
                         onChange={(e) => handleUpdatePositionRating(item.code, e.target.value)}
                         onBlur={() => handlePositionRatingBlur(item.code, item.rating)}
+                        readOnly={readOnly}
                         placeholder="OVR"
                         title="Bu mevkideki oyuncu ratingini girin (50-99)."
                         aria-label="Bu mevkideki oyuncu ratingini girin (50-99)."
-                        className="w-14 px-2 py-1 bg-[#040a1b] border border-[#00d2ff]/40 rounded-lg text-xs font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none focus:border-white transition"
+                        className={`w-14 px-2 py-1 bg-[#040a1b] border border-[#00d2ff]/40 rounded-lg text-xs font-black text-center text-[#F5D77F] placeholder-blue-300/40 focus:outline-none transition ${readOnly ? "cursor-default" : "focus:border-white"}`}
                       />
-                      <button
+                      {!readOnly && <button
                         type="button"
                         onClick={() => handleDeletePosition(item.code)}
                         className="text-blue-300/50 hover:text-red-400 transition p-1"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ))}
@@ -492,11 +498,12 @@ export function PlayerModal({
               type="button"
               disabled={isSubmitting}
               onClick={handleModalClose}
-              className="flex-1 py-3 bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-500/50 font-bold text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+              className={`flex-1 py-3 font-bold text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${readOnly ? "border border-cyan-500/40 bg-cyan-950/70 text-cyan-100 hover:bg-cyan-900/70" : "bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-500/50"}`}
             >
-              <Ban className="w-4 h-4 stroke-[2.5]" /> İptal
+              {readOnly ? <X className="w-4 h-4 stroke-[2.5]" /> : <Ban className="w-4 h-4 stroke-[2.5]" />}
+              {readOnly ? 'Kapat' : 'İptal'}
             </button>
-            <button
+            {!readOnly && <button
               type="submit"
               disabled={isSubmitting}
               className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/80 font-black text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
@@ -507,7 +514,7 @@ export function PlayerModal({
                 <UserCheck className="w-4 h-4 stroke-[2.5]" />
               )}
               {isSubmitting ? 'Kaydediliyor...' : 'Kaydet'}
-            </button>
+            </button>}
           </div>
         </form>
       </div>
