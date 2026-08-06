@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   analyzeFormationCompatibility,
   generateBalancedTeams,
+  swapPlayers,
 } from "../src/lib/draftEngine.ts";
 import { getOverallRating } from "../src/lib/positions.ts";
 
@@ -513,4 +514,26 @@ test("OVR ve mevki modları, gerçekçi ratinglerde önceki DEF eşleşmesini de
       `${mode}: takım ortalama farkı 3.0 sınırını aşmamalı`
     );
   }
+});
+
+test("manuel takas oyuncuların slotlarını değiştirir ve overall gücünü ana rating ile korur", () => {
+  const draft = {
+    teamA: [
+      { ...player("cakir", [position("MID", 85, true)]), assignedPosition: "MID", effectiveRating: 85 },
+    ],
+    teamB: [
+      { ...player("anil", [position("FWD", 80, true), position("MID", 75)]), assignedPosition: "FWD", effectiveRating: 80 },
+    ],
+    teamAPower: 85,
+    teamBPower: 80,
+  };
+
+  const result = swapPlayers(draft, "cakir", "anil", "overall");
+
+  assert.equal(result.teamA[0].id, "anil");
+  assert.equal(result.teamA[0].assignedPosition, "MID");
+  assert.equal(result.teamB[0].id, "cakir");
+  assert.equal(result.teamB[0].assignedPosition, "FWD");
+  assert.equal(result.teamAPower, 80);
+  assert.equal(result.teamBPower, 85);
 });

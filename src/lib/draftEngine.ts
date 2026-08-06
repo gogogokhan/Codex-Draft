@@ -1141,7 +1141,8 @@ export function generateBalancedTeams(
 export function swapPlayers(
   draft: DraftResult,
   playerIdA: string,
-  playerIdB: string
+  playerIdB: string,
+  mode: DraftMode = "positional"
 ): DraftResult {
   const teamA = [...draft.teamA];
   const teamB = [...draft.teamB];
@@ -1222,7 +1223,7 @@ export function swapPlayers(
   return {
     teamA,
     teamB,
-    teamAPower: calculateTeamPower(teamA),
-    teamBPower: calculateTeamPower(teamB),
+    teamAPower: mode === "overall" ? calculateOverallPower(teamA) : calculateTeamPower(teamA),
+    teamBPower: mode === "overall" ? calculateOverallPower(teamB) : calculateTeamPower(teamB),
   };
 }

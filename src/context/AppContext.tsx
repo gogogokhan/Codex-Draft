@@ -993,13 +993,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!canManageMatch) return;
       setDraftResult((prev) =>
         prev ? (() => {
-          const next = { ...swapPlayers(prev, playerIdA, playerIdB) };
+          const next = { ...swapPlayers(prev, playerIdA, playerIdB, draftMode) };
           void persistCommunityMatchState({ draftResult: next });
           return next;
         })() : null
       );
     },
-    [canManageMatch, setDraftResult, persistCommunityMatchState]
+    [canManageMatch, draftMode, setDraftResult, persistCommunityMatchState]
   );
 
   const clearDraft = useCallback(() => {
