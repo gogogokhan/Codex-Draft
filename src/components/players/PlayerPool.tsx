@@ -439,7 +439,7 @@ export function PlayerPool({
           <p className="text-sm text-cyan-300/60 font-medium">Henüz oyuncu eklenmemiş.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,216px)] gap-x-5 gap-y-6">
           {sortedPlayers.map((playerItem) => (
             <div
               key={playerItem.id}
