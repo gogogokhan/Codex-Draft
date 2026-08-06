@@ -231,6 +231,15 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
     return { text: 'OYO', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
   };
 
+  const sortPlayersBySquadOrder = (players: AssignedPlayer[]) =>
+    [...players].sort((a, b) => {
+      const positionDifference =
+        (POSITION_ORDER[a.assignedPosition] ?? 99) -
+        (POSITION_ORDER[b.assignedPosition] ?? 99);
+      if (positionDifference !== 0) return positionDifference;
+      return a.name.localeCompare(b.name, 'tr');
+    });
+
   const TeamPanel = ({
     teamName,
     players,
@@ -240,16 +249,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
     players: any[];
     avgRating: string;
   }) => {
-    const sortedPlayers = [...players].sort((a, b) => {
-      const positionDifference =
-        (POSITION_ORDER[a.assignedPosition as Position] ?? 99) -
-        (POSITION_ORDER[b.assignedPosition as Position] ?? 99);
-      if (positionDifference !== 0) return positionDifference;
-      return String(a.name || a.fullName).localeCompare(
-        String(b.name || b.fullName),
-        'tr'
-      );
-    });
+    const sortedPlayers = sortPlayersBySquadOrder(players);
 
     return (
       <aside className="flex min-h-[420px] w-full flex-col justify-between gap-4 rounded-3xl border border-cyan-500/30 bg-slate-950/80 p-4 shadow-2xl shadow-cyan-950/20 backdrop-blur-md xl:min-h-[1100px]">
@@ -512,7 +512,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
                   <strong className="text-amber-300">{swapSource.name}</strong> ile yer değiştirecek rakip takım oyuncusunu seç.
                 </p>
                 <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-                  {getOpponentPlayers(swapSource.id).map((player) => {
+                  {sortPlayersBySquadOrder(getOpponentPlayers(swapSource.id)).map((player) => {
                     const badge = getPosBadge(player);
                     return (
                       <button
