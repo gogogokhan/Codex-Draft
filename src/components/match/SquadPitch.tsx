@@ -219,7 +219,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
             </div>
 
             {/* OYUNCU LİSTESİ */}
-            <div className="bg-slate-900/90 border border-cyan-500/20 rounded-2xl p-4 flex flex-col gap-2.5">
+            <div className="bg-slate-900/90 border border-cyan-500/20 rounded-2xl p-3 flex flex-col gap-2.5">
               <h3 className="text-xs font-black tracking-wider text-cyan-400 uppercase border-b border-cyan-500/20 pb-2">
                 Kadro Listesi ({players.length} Oyuncu)
               </h3>
@@ -243,11 +243,11 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
                       }}
                       className="flex w-full items-center justify-between bg-slate-950/60 border border-slate-800/80 hover:border-cyan-500/60 hover:bg-slate-900 rounded-xl px-3 py-2 transition-all cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-cyan-400/70"
                     >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${badge.color}`}>
                           {badge.text}
                         </span>
-                        <span className="max-w-[120px] truncate text-xs font-bold text-zinc-200">
+                        <span className="min-w-0 flex-1 truncate text-xs font-bold text-zinc-200">
                           {player.name || player.fullName}
                         </span>
                       </div>
@@ -357,7 +357,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
   return (
     <div className="w-full space-y-8 py-2">
       {/* 🎯 KONTROL VE BİLGİ BARI */}
-      <div className="max-w-7xl mx-auto rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="mx-auto flex max-w-[1460px] flex-col items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 sm:flex-row">
         
         {/* AKTİF DENGELEME MODU ROZETİ */}
         <div className="flex items-center gap-3">
@@ -400,7 +400,7 @@ export function SquadPitch({ onPlayerClick }: SquadPitchProps) {
         </div>
       </div>
 
-      <div className="mx-auto grid w-full max-w-[1380px] grid-cols-1 items-stretch gap-4 xl:grid-cols-[260px_minmax(620px,1fr)_260px]">
+      <div className="mx-auto grid w-full max-w-[1460px] grid-cols-1 items-stretch gap-4 xl:grid-cols-[290px_minmax(620px,1fr)_290px]">
         <TeamPanel teamName={teamAName} players={teamAPlayers} avgRating={teamAAvg} />
         <SharedPitch />
         <TeamPanel teamName={teamBName} players={teamBPlayers} avgRating={teamBAvg} />
